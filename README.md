@@ -20,7 +20,8 @@ and follow the installation steps in `README.txt` inside the archive.
 Because this fork diverges from OldKrab's official releases without being part of the upstream release train, versions follow `<upstream-base>-fork.<N>`:
 - **`v1.3.0-fork.1`**: Based on OldKrab's original **`v1.3.0`**, Fork Release **`1`**.
 - **`v1.3.0-fork.2`**: Exit-crash fix, **ScriptHookRDR2 V2** save-load hot-reload architecture, and `DualSenseSettings` recovery.
-- Future fork releases built on the same base increment the suffix (`v1.3.0-fork.3`, `v1.3.0-fork.4`, ...). If changes from a newer upstream version are merged later, the upstream prefix updates accordingly. This guarantees fork releases never collide with official upstream version numbers.
+- **`v1.3.0-fork.3`**: Gyro upward-drift and post-shot camera recoil-compounding fix.
+- Future fork releases built on the same base increment the suffix (`v1.3.0-fork.4`, `v1.3.0-fork.5`, ...). If changes from a newer upstream version are merged later, the upstream prefix updates accordingly. This guarantees fork releases never collide with official upstream version numbers.
 
 ---
 
@@ -52,8 +53,8 @@ Because this fork diverges from OldKrab's official releases without being part o
 - **Wanted Police Sweep & Escalating Heartbeat:** Alternating police-light Player LED sweep, red/blue lightbar flashes, and a tension heartbeat that speeds up with `GET_WANTED_SCORE`.
 
 ### 5. Stability, Gyro/Camera & Hardware Fixes
-- **Zero Unwanted L2 Camera Pull:** Preserves RDR2's native right-stick deadzone, enforces case-insensitive `Gyro.Mode` parsing (`aim` / `always`), armed-only free-aim gating, still-only initial gyro bias seeding, no drift learning during active aim, and menu/loading gating for `Gyro.Mode=always`.
-- **Async Startup, Thread Safety & Clean Shutdown:** Moves heavy JSON/audio boot onto an async Win32 `CreateThread`, uses immediate `fflush` on `INFO`/`WARN`/`ERROR` logs, enforces thread-safe audio-thread speaker purging, clean overlapped HID cancellation (`CancelIoEx`), immortal process-lifetime singletons (preventing `0xc0000409` / `0x40000015` CRT `atexit` exit crashes), and `173/173` passing offline selftests plus automated Win32 hot-reload verification (`dsr2_reload_test.exe`).
+- **Zero Unwanted L2 Camera Pull & Drift-Free Gyro:** Preserves RDR2's native right-stick deadzone, enforces case-insensitive `Gyro.Mode` parsing (`aim` / `always`), armed-only free-aim gating, variance-bounded stillness-only bias learning (`[-5, +5] deg/s`), smooth `0.8 deg/s` soft deadzone, menu/loading gating for `Gyro.Mode=always`, and independent camera yaw/pitch writes with a `0.40 s` post-shot pitch recoil mute in `Output=camera`.
+- **Async Startup, Thread Safety & Clean Shutdown:** Moves heavy JSON/audio boot onto an async Win32 `CreateThread`, uses immediate `fflush` on `INFO`/`WARN`/`ERROR` logs, enforces thread-safe audio-thread speaker purging, clean overlapped HID cancellation (`CancelIoEx`), immortal process-lifetime singletons (preventing `0xc0000409` / `0x40000015` CRT `atexit` exit crashes), and `179/179` passing offline selftests plus automated Win32 hot-reload verification (`dsr2_reload_test.exe`).
 - **ScriptHookRDR2 V2 Save-Load Hot-Reload & Datastore Recovery:** Splits a thin, CRT-free, thread-free `DualSenseRDR2.asi` loader shim from the pinned `DualSenseRDR2\DualSenseCore.dll` so `FreeLibrary`/`LoadLibrary` save-load cycles unload and re-register cleanly while keeping XInput hooks, injected strings, and worker threads intact; resets transient entity handles across loads, rebuilds `ScriptDatastoreRoot.DualSenseSettings`, and passes native game rumble through if a script thread ever stalls during gameplay.
 - **DualSense HID & WASAPI Precision:** Dynamic HID feature report `0x05` length (64-byte USB / 41-byte Bluetooth) with strict gyro calibration range validation, USB/BT endpoint handling, 24/32-bit PCM support, and a lock-free SPSC ring buffer.
 

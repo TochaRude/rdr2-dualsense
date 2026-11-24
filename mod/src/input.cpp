@@ -278,6 +278,21 @@ void Input::track_touch(const InputState& s) {
     }
 }
 
+void Input::reset_gyro_state() {
+    for (int i = 0; i < 3; ++i) {
+        bias_[i] = 0.0f;
+        still_ref_[i] = 0.0f;
+    }
+    still_ref_ok_ = false;
+    still_time_ = 0.0f;
+    smooth_yaw_ = smooth_pitch_ = 0.0f;
+    aim_fade_ = 0.0f;
+    aim_since_ = -1.0;
+    gyro_t_ = 0.0;
+    gyro_rx_ = 0.0f;
+    gyro_ry_ = 0.0f;
+}
+
 // Gyro aim: a fine-tuning aid on top of the right stick, only while free-aiming (never during the game's
 // lock-on). Uses gravity-projected player-space yaw and dt-scaled smoothing/bias learning so USB (250 Hz)
 // and Bluetooth (~60 Hz) feel identical.
@@ -300,24 +315,32 @@ void Input::track_gyro(const InputState& s, bool aiming, bool can_gyro) {
     if (dt <= 0 || dt > 0.05) return;
     float r[3];
     for (int i = 0; i < 3; ++i) r[i] = float(s.gyro[i]) / 16.4f;   // deg/s
-    if (still_time_ < 0 && std::fabs(r[0]) + std::fabs(r[1]) + std::fabs(r[2]) < 15.0f) {
-        for (int i = 0; i < 3; ++i) bias_[i] = r[i];
-        still_time_ = 0;
-    }
-    if (!active) {
-        float mag = 0;
-        for (int i = 0; i < 3; ++i) mag += std::fabs(r[i] - bias_[i]);
-        if (mag < 10.0f && still_time_ >= 0) {       // resting: dt-scaled drift learning (never while aiming)
-            still_time_ += float(dt);
-            if (still_time_ > 0.25f) {
-                float alpha = 1.0f - std::exp(-float(dt) / 0.15f);
-                for (int i = 0; i < 3; ++i) bias_[i] += (r[i] - bias_[i]) * alpha;
-            }
-        } else {
-            still_time_ = 0;
+    // Learn bias only during true, variance-bounded stillness (never snap on a single moving sample or slow hand motion).
+    constexpr float kMaxBias = 5.0f;
+    constexpr float kStillBand = 1.2f;
+    const bool plausible = std::fabs(r[0]) <= kMaxBias && std::fabs(r[1]) <= kMaxBias && std::fabs(r[2]) <= kMaxBias;
+    const bool steady = plausible && still_ref_ok_ &&
+                        std::fabs(r[0] - still_ref_[0]) <= kStillBand &&
+                        std::fabs(r[1] - still_ref_[1]) <= kStillBand &&
+                        std::fabs(r[2] - still_ref_[2]) <= kStillBand;
+    if (steady) {
+        still_time_ += float(dt);
+        const float need = active ? 1.2f : 0.6f;
+        if (still_time_ >= need && (!active || (gc.mode == 2 && !aiming))) {
+            float alpha = 1.0f - std::exp(-float(dt) / 1.0f);   // slow 1.0 s EMA: never chases hand movement
+            for (int i = 0; i < 3; ++i)
+                bias_[i] = clampv(bias_[i] + (r[i] - bias_[i]) * alpha, -kMaxBias, kMaxBias);
         }
-        return;
+    } else {
+        still_time_ = 0.0f;
+        if (plausible) {
+            for (int i = 0; i < 3; ++i) still_ref_[i] = r[i];
+            still_ref_ok_ = true;
+        } else {
+            still_ref_ok_ = false;
+        }
     }
+    if (!active) return;
     if (aim_since_ < 0) aim_since_ = s.t;
     if (s.t - aim_since_ < 0.35) return;
     aim_fade_ = std::min(1.0f, aim_fade_ + float(dt) / 0.2f);
@@ -340,10 +363,12 @@ void Input::track_gyro(const InputState& s, bool aiming, bool can_gyro) {
         sm += (v * (1.0f - direct) - sm) * ema;
         return v * direct + sm;
     };
-    float y = split(yaw, smooth_yaw_);
-    float pch = split(pitch, smooth_pitch_);
-    if (std::fabs(y) < 0.25f) y = 0;
-    if (std::fabs(pch) < 0.25f) pch = 0;
+    auto deadzone = [](float v, float dz) {
+        float a = std::fabs(v);
+        return a <= dz ? 0.0f : std::copysign(a - dz, v);
+    };
+    float y = deadzone(split(yaw, smooth_yaw_), 0.8f);
+    float pch = deadzone(split(pitch, smooth_pitch_), 0.8f);
 
     float sens = gc.sensitivity * aim_fade_;
     auto to_stick = [&](float rate) {

@@ -130,6 +130,10 @@ public:
     GameSnapshot snapshot();
     std::vector<WorldEvent> take_events();
     void add_gyro(float yaw_deg, float pitch_deg);
+    void notify_shot(double now);
+    static bool allow_gyro_pitch(double now, double mute_until, float pitch) {
+        return now >= mute_until && std::fabs(pitch) > 1e-3f;
+    }
     void request_greet() { greet_requested_ = true; }   // any thread (voice recognizer)
     enum HorseCommand { HorseNone, HorseCalm, HorseStop, HorseSpur };
     void request_horse(HorseCommand c) { horse_cmd_ = c; }   // any thread (voice recognizer)
@@ -200,6 +204,7 @@ private:
     void speech_probe(int me, const int* peds, int n, float px, float py, float pz, float cam, double now);
     int melee_hits_ = 0, melee_ko_ = 0;
     std::atomic<float> gyro_yaw_{0}, gyro_pitch_{0};
+    std::atomic<double> gyro_pitch_mute_until_{0.0};
     // bodies
     Surfaces surfaces_;
     bool surfaces_loaded_ = false;

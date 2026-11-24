@@ -315,6 +315,7 @@ bool Core::on_input(const InputState& s, OutputState& out) {
     bool can_run_engine = engine_ && !paused && !frozen && !(in_game_ && (g.blocked || g.swimming));
     bool weapon_active = can_run_engine && triggers_on_;
     if (can_run_engine) frame = engine_->update(s, h);
+    if (in_game_ && frame.flash) world().notify_shot(s.t);
     std::vector<Cue> cues = std::move(frame.cues);
     if (weapon_active) {
         out.r2 = frame.r2;

@@ -1,4 +1,4 @@
-DualSense for RDR2  v1.3.0-fork.2  -  Community Fork (based on OldKrab's v1.3.0)
+DualSense for RDR2  v1.3.0-fork.3  -  Community Fork (based on OldKrab's v1.3.0)
 ==============================================================================
 
 Unofficial community fork by TochaRude, adapted with the help of Antigravity
@@ -141,6 +141,15 @@ Source code (MIT): see the mod page.
 
 CHANGES
 -------
+1.3.0-fork.3  Gyro upward-drift and post-shot camera recoil-feedback fixes:
+              - Gyro drift fix: strict variance-bounded stillness-based bias calibration (1.2 deg/s
+                stillness band, 0.6 s idle or 1.2 s in Mode=always, slow 1.0 s EMA clamped to
+                [-5, +5] deg/s) and a smooth 0.8 deg/s soft deadzone to eliminate steady upward
+                or axis drift.
+              - Post-shot recoil isolation: separate camera yaw/pitch writes and a 0.40 s post-shot
+                pitch recoil mute (World::notify_shot / World::allow_gyro_pitch) in Output=camera
+                mode so RDR2's own weapon recoil pitch kick is not read back and compounded while
+                aiming and firing.
 1.3.0-fork.2  Stability, exit-crash, and save-load reload fixes:
               - Exit crash fix (0xc0000409 / 0x40000015): process-lifetime singletons and background
                 thread slots remain immortal across ExitProcess instead of running CRT atexit destructors

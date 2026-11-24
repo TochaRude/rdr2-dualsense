@@ -27,6 +27,12 @@ void World::add_gyro(float yaw, float pitch) {
     atomic_add(gyro_pitch_, pitch);
 }
 
+void World::notify_shot(double now) {
+    double until = now + 0.40;
+    double cur = gyro_pitch_mute_until_.load(std::memory_order_relaxed);
+    while (cur < until && !gyro_pitch_mute_until_.compare_exchange_weak(cur, until, std::memory_order_relaxed)) {}
+}
+
 GameSnapshot World::snapshot() {
     std::lock_guard<std::mutex> l(mu_);
     return snap_;
@@ -742,6 +748,7 @@ void World::reset_session_state() {
     tile_at_ = 0;
     was_climbing_ = was_door_ = false;
     explosion_on_ = false;
+    gyro_pitch_mute_until_.store(0.0, std::memory_order_relaxed);
 }
 
 void World::on_script_reload() {
@@ -937,6 +944,7 @@ void World::tick() {
     s.wheel = IS_CONTROL_PRESSED(0, kWheel) || IS_DISABLED_CONTROL_PRESSED(0, kWheel);
     s.wheel_item = s.wheel ? HUD_GET_INVENTORY_WHEEL_CURRENTLY_HIGHLIGHTED() : 0;
     s.shooting = IS_PED_SHOOTING(me);
+    if (s.shooting) notify_shot(s.time);
     s.free_aim = IS_PLAYER_FREE_AIMING(pl);
     s.lock_on = IS_PLAYER_TARGETTING_ANYTHING(pl);
     s.aiming = s.free_aim || s.lock_on;
@@ -1657,11 +1665,13 @@ void World::tick() {
 
     // --- gyro aim: turn the camera by what the controller turned ---
     float yaw = atomic_take(gyro_yaw_), pitch = atomic_take(gyro_pitch_);
-    // only while the right stick rests: setting the camera every frame would override the stick
-    if (gyro_enabled && !s.blocked && ((s.armed && s.free_aim && !s.lock_on) || gyro_wants_always) && !gyro_stick_busy &&
-        (std::fabs(yaw) > 1e-4f || std::fabs(pitch) > 1e-4f)) {
-        SET_GAMEPLAY_CAM_RELATIVE_HEADING(GET_GAMEPLAY_CAM_RELATIVE_HEADING() + yaw);
-        SET_GAMEPLAY_CAM_RELATIVE_PITCH(GET_GAMEPLAY_CAM_RELATIVE_PITCH() + pitch);
+    // only while the right stick rests: setting the camera every frame would override the stick.
+    // Apply yaw and pitch independently and mute pitch writes briefly after shots so game recoil is not baked in.
+    if (gyro_enabled && !s.blocked && ((s.armed && s.free_aim && !s.lock_on) || gyro_wants_always) && !gyro_stick_busy) {
+        if (std::fabs(yaw) > 1e-3f)
+            SET_GAMEPLAY_CAM_RELATIVE_HEADING(GET_GAMEPLAY_CAM_RELATIVE_HEADING() + yaw);
+        if (allow_gyro_pitch(s.time, gyro_pitch_mute_until_.load(std::memory_order_relaxed), pitch))
+            SET_GAMEPLAY_CAM_RELATIVE_PITCH(GET_GAMEPLAY_CAM_RELATIVE_PITCH() + pitch);
     }
 
     std::lock_guard<std::mutex> l(mu_);

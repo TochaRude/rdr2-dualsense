@@ -22,6 +22,9 @@ public:
     // gestures + gyro, called by the controller thread for each fresh report
     void track_touch(const InputState& s);
     void track_gyro(const InputState& s, bool aiming_hint, bool can_gyro = true);
+    void reset_gyro_state();
+    float gyro_rx() const { return gyro_rx_.load(); }
+    float gyro_ry() const { return gyro_ry_.load(); }
 
     // game rumble (XInputSetState) 0..1
     float rumble_low() const { return rumble_low_.load(); }
@@ -64,7 +67,9 @@ private:
     bool two_ = false;
     // gyro
     float bias_[3] = {0, 0, 0};
-    float still_time_ = -1.0f, smooth_yaw_ = 0, smooth_pitch_ = 0;
+    float still_ref_[3] = {0, 0, 0};
+    bool still_ref_ok_ = false;
+    float still_time_ = 0.0f, smooth_yaw_ = 0, smooth_pitch_ = 0;
     float aim_fade_ = 0;
     double gyro_log_t_ = 0, aim_since_ = -1;
     std::atomic<float> gyro_rx_{0}, gyro_ry_{0};   // gyro, added to the right stick the game reads (-1..1)

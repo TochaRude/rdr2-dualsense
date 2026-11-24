@@ -13,6 +13,7 @@
 #include "surfaces.h"
 #include "settings_menu.h"
 #include "voice.h"
+#include "world.h"
 #include "log.h"
 
 #include <clocale>
@@ -751,6 +752,53 @@ int run_selftests(const fs::path& data) {
         CHECK(!Core::should_fallback_rumble(true, false, 10.0, 0.0f, 0.0f, false), "no fallback rumble in silent pause menu");
         CHECK(Core::should_fallback_rumble(true, false, 3.5, 0.4f, 0.0f, false), "fallback activates on active game rumble after 3 s stall");
         CHECK(Core::should_fallback_rumble(true, false, 5.0, 0.0f, 0.0f, true), "fallback remains armed across brief 0/0 gaps");
+    }
+    {   // Gyro bias stillness learning, soft deadzone, and post-shot pitch recoil gate
+        const std::string pid = std::to_string(GetCurrentProcessId());
+        fs::path tmp_ini = fs::temp_directory_path() / ("dsr2_gyro_" + pid + ".ini");
+        {
+            std::ofstream o(tmp_ini);
+            o << "[Gyro]\nMode=aim\nOutput=stick\nSensitivity=1.0\nVerticalRatio=1.0\nSmoothThreshold=6.0\n";
+        }
+        config().load(tmp_ini.wstring());
+        input().configure();
+        input().reset_gyro_state();
+
+        InputState gs;
+        gs.fresh = true;
+        double t = 1.0;
+        auto step_gyro = [&](float pitch_dps, bool aiming) {
+            t += 0.01;
+            gs.t = t;
+            gs.gyro[0] = int16_t(std::lround(pitch_dps * 16.4f));
+            gs.gyro[1] = 0;
+            gs.gyro[2] = 0;
+            input().track_gyro(gs, aiming, true);
+        };
+        // 1.5 s resting at +1.8 deg/s residual bias -> must learn and cancel drift cleanly while aiming
+        for (int i = 0; i < 150; ++i) step_gyro(1.8f, false);
+        for (int i = 0; i < 60; ++i) step_gyro(1.8f, true);
+        CHECK(std::fabs(input().gyro_ry()) < 1e-4f, "resting stillness cancels residual gyro drift");
+
+        // 0.8 s of slow varying hand motion must NOT poison bias
+        for (int i = 0; i < 80; ++i) step_gyro(2.0f + 3.0f * (float(i % 20) / 19.0f), false);
+        for (int i = 0; i < 60; ++i) step_gyro(1.8f, true);
+        CHECK(std::fabs(input().gyro_ry()) < 1e-4f, "slow hand motion does not poison learned gyro bias");
+
+        // Deliberate +18 deg/s pitch must respond cleanly while aiming
+        for (int i = 0; i < 25; ++i) step_gyro(18.0f, true);
+        CHECK(input().gyro_ry() > 0.2f, "deliberate pitch rotation responds while aiming");
+
+        CHECK(!World::allow_gyro_pitch(10.1, 10.4, 2.0f), "camera pitch muted immediately after shot");
+        CHECK(!World::allow_gyro_pitch(10.5, 10.4, 0.0005f), "micro camera pitch below threshold suppressed");
+        CHECK(World::allow_gyro_pitch(10.5, 10.4, 0.05f), "camera pitch resumes cleanly after recoil window");
+
+        { std::ofstream o(tmp_ini); o << Config::default_text(); }
+        config().load(tmp_ini.wstring());
+        input().configure();
+        input().reset_gyro_state();
+        std::error_code ec;
+        fs::remove(tmp_ini, ec);
     }
     printf("selftest: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
