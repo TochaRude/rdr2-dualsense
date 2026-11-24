@@ -4,8 +4,8 @@
 namespace dsr2 {
 
 World& world() {
-    static World w;
-    return w;
+    static World* w = new World();
+    return *w;
 }
 
 void World::tick() {}

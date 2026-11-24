@@ -287,8 +287,8 @@ uint32_t line_stream_id(uint32_t partial, uint32_t variation) {
 }
 
 Index& index() {
-    static Index ix;
-    return ix;
+    static Index* ix = new Index();
+    return *ix;
 }
 
 void Index::walk(uint16_t a, Kind kind) {

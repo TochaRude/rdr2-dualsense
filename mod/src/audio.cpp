@@ -216,6 +216,7 @@ bool AudioEngine::start(HapticLibrary* lib) {
 
 void AudioEngine::stop() {
     running_ = false;
+    ga_running_ = false;
     mic_running_ = false;
     for (auto* t : {&render_, &loop_, &mic_})
         if (t->joinable()) t->join();

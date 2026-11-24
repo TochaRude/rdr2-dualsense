@@ -7,8 +7,8 @@
 namespace dsr2 {
 
 Input& input() {
-    static Input i;
-    return i;
+    static Input* i = new Input();
+    return *i;
 }
 
 static DWORD WINAPI hk_get_state(DWORD idx, XINPUT_STATE* s) { return input().get_state(idx, s); }

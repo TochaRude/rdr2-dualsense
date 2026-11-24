@@ -23,17 +23,7 @@ namespace dsr2 {
 
 class Surfaces {
 public:
-    ~Surfaces() {
-        std::thread w;
-        {
-            std::lock_guard<std::mutex> l(mu_);
-            stop_ = true;
-            shutting_down_ = true;
-            w = std::move(worker_);
-        }
-        cv_.notify_all();
-        if (w.joinable()) w.detach();
-    }
+    ~Surfaces() { shutdown(); }
     void shutdown();
     static const std::vector<std::string>& labels();   // ground grass mud stone gravel wood snow sand water
     void load(const fs::path& json);

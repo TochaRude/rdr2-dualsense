@@ -32,20 +32,27 @@ constexpr size_t kRing = 1 << 14;
 Rec g_ring[kRing];
 std::atomic<uint64_t> g_head{0}, g_tail{0};
 std::atomic<bool> g_stop{false};
-std::thread g_drain;
 uint8_t* g_hooked_fn = nullptr;
 uint64_t g_orig_bytes = 0;
 
-std::mutex g_mu;                                   // guards the handle map
-std::unordered_map<HANDLE, int> g_kind;            // 1 = audio archive, 0 = other
-std::unordered_map<HANDLE, std::string> g_name;
+struct ProbeState {
+    std::thread drain;
+    std::mutex mu;                                   // guards the handle map
+    std::unordered_map<HANDLE, int> kind;            // 1 = audio archive, 0 = other
+    std::unordered_map<HANDLE, std::string> name;
+};
+ProbeState& probe_state() {
+    static auto* s = new ProbeState();
+    return *s;
+}
 thread_local bool t_busy = false;
 
 int kind_of(HANDLE h) {
+    ProbeState& ps = probe_state();
     {
-        std::lock_guard<std::mutex> l(g_mu);
-        auto it = g_kind.find(h);
-        if (it != g_kind.end()) return it->second;
+        std::lock_guard<std::mutex> l(ps.mu);
+        auto it = ps.kind.find(h);
+        if (it != ps.kind.end()) return it->second;
     }
     int k = 0;
     std::string name;
@@ -62,10 +69,10 @@ int kind_of(HANDLE h) {
             }
         }
     }
-    std::lock_guard<std::mutex> l(g_mu);
-    if (g_kind.size() > 4096) { g_kind.clear(); g_name.clear(); }
-    g_kind[h] = k;
-    if (k) g_name[h] = name;
+    std::lock_guard<std::mutex> l(ps.mu);
+    if (ps.kind.size() > 4096) { ps.kind.clear(); ps.name.clear(); }
+    ps.kind[h] = k;
+    if (k) ps.name[h] = name;
     return k;
 }
 
@@ -125,9 +132,10 @@ void drain() {
             uint32_t rlen = slot.len;
             std::string name;
             {
-                std::lock_guard<std::mutex> l(g_mu);
-                auto it = g_name.find(rh);
-                if (it != g_name.end()) name = it->second;
+                ProbeState& ps = probe_state();
+                std::lock_guard<std::mutex> l(ps.mu);
+                auto it = ps.name.find(rh);
+                if (it != ps.name.end()) name = it->second;
             }
             FILETIME ft{DWORD(rft), DWORD(rft >> 32)}, lt;
             SYSTEMTIME st;
@@ -192,7 +200,7 @@ void io_probe_start() {
     FlushInstructionCache(GetCurrentProcess(), f, 8);
     g_hooked_fn = f;
     g_stop = false;
-    g_drain = std::thread(drain);
+    probe_state().drain = std::thread(drain);
     LOGI("io probe: logging reads of the game's audio archives (debug)");
 }
 
@@ -207,7 +215,8 @@ void io_probe_stop() {
         }
         g_hooked_fn = nullptr;
     }
-    if (g_drain.joinable()) g_drain.join();
+    std::thread& t = probe_state().drain;
+    if (t.joinable()) t.join();
 }
 
 }  // namespace dsr2

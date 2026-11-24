@@ -8,20 +8,23 @@
 
 namespace dsr2::log {
 
-static std::mutex g_mu;
+static std::mutex& log_mu() {
+    static auto* m = new std::mutex();
+    return *m;
+}
 static FILE* g_file = nullptr;
 static std::atomic<bool> g_debug{false};
 static int g_unflushed = 0;
 static ULONGLONG g_last_flush = 0;
 
 void open(const std::wstring& path) {
-    std::lock_guard<std::mutex> l(g_mu);
+    std::lock_guard<std::mutex> l(log_mu());
     if (g_file) return;
     g_file = _wfopen(path.c_str(), L"w");
 }
 
 void close() {
-    std::lock_guard<std::mutex> l(g_mu);
+    std::lock_guard<std::mutex> l(log_mu());
     if (g_file) {
         fflush(g_file);
         fclose(g_file);
@@ -42,7 +45,7 @@ void write(const char* level, const char* fmt, ...) {
     va_end(ap);
     SYSTEMTIME st;
     GetLocalTime(&st);
-    std::lock_guard<std::mutex> l(g_mu);
+    std::lock_guard<std::mutex> l(log_mu());
     ULONGLONG now_ms = GetTickCount64();
     FILE* out = g_file ? g_file : stderr;
     fprintf(out, "%02d:%02d:%02d.%03d [%s] %s\n", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds, level, msg);

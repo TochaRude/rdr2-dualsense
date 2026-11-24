@@ -18,8 +18,8 @@
 namespace dsr2 {
 
 Config& config() {
-    static Config c;
-    return c;
+    static Config* c = new Config();
+    return *c;
 }
 
 static std::string lower(std::string s) {

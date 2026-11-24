@@ -18,11 +18,19 @@ namespace dsr2 {
 
 class Core {
 public:
+    ~Core() {
+        if (initialized_.load() || reconnect_thread_.joinable()) shutdown();
+    }
     bool init(bool in_game, const std::string& test_weapon = "");
     void shutdown();
     void script_tick();                 // ScriptHook thread (in game) or test loop
     void request_reload() { reload_requested_ = true; }
     void load_game_files();       // script thread, first tick: the base game's sound banks, then a reload
+    // Pure helper: whether stalled-script gameplay should pass native game rumble through.
+    static bool should_fallback_rumble(bool frozen, bool paused, double frozen_for, float rl, float rh, bool already_active) {
+        if (!frozen || paused || frozen_for < 3.0) return false;
+        return already_active || rl > 0.001f || rh > 0.001f;
+    }
     // test harness introspection
     std::string status();
     DualSense& pad() { return pad_; }
@@ -86,6 +94,9 @@ private:
     bool pad_was_connected_ = false, pad_seen_ = false;
     double l1_since_ = -1, wheel_until_ = 0;
     bool need_r2_release_ = false;
+    float game_rumble_gain_ = 0.15f;
+    bool frozen_warned_ = false;
+    bool frozen_rumble_fallback_ = false;
     std::atomic<bool> restarting_{false};
 };
 

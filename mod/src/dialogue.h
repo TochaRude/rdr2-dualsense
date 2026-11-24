@@ -31,6 +31,7 @@ public:
         float pan = 0, dist = 0;
         bool player = false;
     };
+    ~Dialogue() { stop(); }
     void configure();                                        // settings: any time
     void start(const fs::path& game_dir, AudioEngine* audio); // once, in game
     void stop();

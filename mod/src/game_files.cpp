@@ -29,8 +29,14 @@ constexpr uint64_t kBadHandle = ~0ull;
 std::once_flag g_once;
 GetDeviceFn g_get_device = nullptr;
 uintptr_t g_image = 0, g_image_end = 0;
-std::mutex g_mu;
-std::map<std::string, std::vector<uint8_t>> g_files;   // preloaded, until the sound loader takes them
+struct Cache {
+    std::mutex mu;
+    std::map<std::string, std::vector<uint8_t>> files;   // preloaded, until the sound loader takes them
+};
+Cache& cache() {
+    static auto* c = new Cache();
+    return *c;
+}
 std::atomic<bool> g_ready{false};
 
 // the game's code section (.text of the exe)
@@ -129,19 +135,20 @@ void preload(const std::vector<std::string>& paths) {
         if (d.empty()) continue;
         ++files;
         bytes += d.size();
-        std::lock_guard<std::mutex> l(g_mu);
-        g_files[p] = std::move(d);
+        std::lock_guard<std::mutex> l(cache().mu);
+        cache().files[p] = std::move(d);
     }
     g_ready = true;
     LOGI("game files: %zu of %zu read, %.1f MB in %.2f s", files, paths.size(), double(bytes) / (1 << 20), now_s() - t0);
 }
 
 std::vector<uint8_t> take(const std::string& path) {
-    std::lock_guard<std::mutex> l(g_mu);
-    auto it = g_files.find(path);
-    if (it == g_files.end()) return {};
+    Cache& c = cache();
+    std::lock_guard<std::mutex> l(c.mu);
+    auto it = c.files.find(path);
+    if (it == c.files.end()) return {};
     std::vector<uint8_t> d = std::move(it->second);
-    g_files.erase(it);
+    c.files.erase(it);
     return d;
 }
 

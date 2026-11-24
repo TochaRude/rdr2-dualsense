@@ -243,7 +243,10 @@ uintptr_t inject(const Table& t) {
 }
 
 std::atomic<bool> g_stop{false};
-std::thread g_thread;
+std::thread& thread_slot() {
+    static auto* t = new std::thread();
+    return *t;
+}
 
 void run() {
     Table table;
@@ -268,14 +271,16 @@ void run() {
 }  // namespace
 
 void text_inject_start() {
-    if (g_thread.joinable()) return;
+    std::thread& t = thread_slot();
+    if (t.joinable()) return;
     g_stop = false;
-    g_thread = std::thread(run);
+    t = std::thread(run);
 }
 
 void text_inject_stop() {
     g_stop = true;
-    if (g_thread.joinable()) g_thread.join();
+    std::thread& t = thread_slot();
+    if (t.joinable()) t.join();
 }
 
 }  // namespace dsr2

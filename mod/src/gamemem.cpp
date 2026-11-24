@@ -130,14 +130,17 @@ bool read(uintptr_t a, void* out, size_t n) {
 
 namespace {
 
-std::mutex g_pad_mu;
+std::mutex& pad_mu() {
+    static auto* m = new std::mutex();
+    return *m;
+}
 uintptr_t g_pad_slot0 = 0;             // slot 0's "a pad is here" byte
 int g_pad_tries = 0;
 double g_pad_next_try = 0;
 
 // found on first use (the controller thread), retried a few times in case the code is not unpacked yet
 uintptr_t pad_slot0() {
-    std::lock_guard<std::mutex> l(g_pad_mu);
+    std::lock_guard<std::mutex> l(pad_mu());
     if (g_pad_slot0 || g_pad_tries >= 5 || now_s() < g_pad_next_try) return g_pad_slot0;
     ++g_pad_tries;
     g_pad_next_try = now_s() + 10;

@@ -5,5 +5,6 @@
 namespace dsr2 {
 
 void settings_ui_tick(double now);
+void settings_ui_mark_dirty();
 
 }  // namespace dsr2

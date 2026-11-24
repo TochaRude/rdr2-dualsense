@@ -12,8 +12,8 @@
 namespace dsr2 {
 
 Dialogue& dialogue() {
-    static Dialogue d;
-    return d;
+    static Dialogue* d = new Dialogue();
+    return *d;
 }
 
 namespace {

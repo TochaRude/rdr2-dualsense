@@ -20,6 +20,7 @@ fs::path module_dir() {
 }  // namespace dsr2
 
 static std::atomic<bool> g_started{false};
+static std::atomic<int> g_script_starts{0};
 static HANDLE g_boot_thread = nullptr;
 
 static DWORD WINAPI boot_thread(LPVOID) {
@@ -37,11 +38,15 @@ static DWORD WINAPI boot_thread(LPVOID) {
 }
 
 static void script_main() {
+    int n = ++g_script_starts;
+    LOGI("script thread started (#%d)", n);
     while (true) {
         try {
             dsr2::core().script_tick();
         } catch (const std::exception& e) {
             LOGE("script tick: %s", e.what());
+        } catch (...) {
+            LOGE("script tick: unknown exception");
         }
         shv_scriptWait(0);
     }
@@ -57,10 +62,10 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID lpReserved) {
         g_boot_thread = CreateThread(nullptr, 0, boot_thread, nullptr, 0, nullptr);
         if (!g_boot_thread) LOGE("boot thread creation failed (%lu)", GetLastError());
     } else if (reason == DLL_PROCESS_DETACH) {
-        shv_scriptUnregister(module);
         // Only clean up on explicit FreeLibrary (lpReserved == nullptr) when boot_thread is not still running
-        // (avoids Loader Lock deadlock on FreeLibrary). Never acquire locks on process exit (lpReserved != nullptr).
+        // (avoids Loader Lock deadlock on FreeLibrary). Never touch ScriptHook or locks on process exit (lpReserved != nullptr).
         if (!lpReserved) {
+            shv_scriptUnregister(module);
             bool boot_done = !g_boot_thread || WaitForSingleObject(g_boot_thread, 0) == WAIT_OBJECT_0;
             if (g_boot_thread) {
                 CloseHandle(g_boot_thread);

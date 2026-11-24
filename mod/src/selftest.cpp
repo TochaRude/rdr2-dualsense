@@ -1,6 +1,7 @@
 // Offline checks of the C++ port against the behaviour verified in the Python lab tests.
 #include "awc.h"
 #include "catalog.h"
+#include "core.h"
 #include "dialogue.h"
 #include "config.h"
 #include "dsp.h"
@@ -11,6 +12,7 @@
 #include "input.h"
 #include "surfaces.h"
 #include "settings_menu.h"
+#include "voice.h"
 #include "log.h"
 
 #include <clocale>
@@ -731,6 +733,24 @@ int run_selftests(const fs::path& data) {
             XINPUT_VIBRATION v{65535, 32768};
             CHECK(set(0, &v) == ERROR_SUCCESS && input().rumble_low() > 0.99f && input().rumble_high() > 0.49f, "game rumble captured");
         }
+    }
+    {   // Clean RAII teardown of thread-owning components (never std::terminate on scope exit) and stalled-script fallback
+        {
+            DualSense ds;
+            AudioEngine ae;
+            Dialogue dlg;
+            Voice vc;
+            Core cr;
+            Surfaces sf;
+            sf.classify(0x8FB48DA9, false, 0, 0);   // starts worker thread; ~Surfaces() joins cleanly on scope exit
+        }
+        CHECK(true, "thread-owning subsystems construct and destruct cleanly");
+        CHECK(!Core::should_fallback_rumble(false, false, 10.0, 1.0f, 1.0f, false), "no fallback rumble when live");
+        CHECK(!Core::should_fallback_rumble(true, true, 10.0, 1.0f, 1.0f, true), "no fallback rumble while wheel paused");
+        CHECK(!Core::should_fallback_rumble(true, false, 2.0, 1.0f, 1.0f, false), "no fallback rumble before 3 s stall threshold");
+        CHECK(!Core::should_fallback_rumble(true, false, 10.0, 0.0f, 0.0f, false), "no fallback rumble in silent pause menu");
+        CHECK(Core::should_fallback_rumble(true, false, 3.5, 0.4f, 0.0f, false), "fallback activates on active game rumble after 3 s stall");
+        CHECK(Core::should_fallback_rumble(true, false, 5.0, 0.0f, 0.0f, true), "fallback remains armed across brief 0/0 gaps");
     }
     printf("selftest: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

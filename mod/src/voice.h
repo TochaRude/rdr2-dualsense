@@ -11,6 +11,7 @@ namespace dsr2 {
 
 class Voice {
 public:
+    ~Voice() { stop(); }
     using Handler = std::function<void(const std::string& phrase, float confidence)>;
     bool start(const std::vector<std::string>& phrases, float min_confidence, Handler h);
     void stop();

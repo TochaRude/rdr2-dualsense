@@ -137,6 +137,7 @@ public:
     std::atomic<bool> gyro_stick_busy{false};
 
 private:
+    void reset_session_state();
     struct Limb {                               // a hoof or a foot (World::steps)
         int bone = -1;
         double last_plant = 0, last_td = 0, last_seen = -10, reset_t = 0;   // felt / any touchdown / tracked / restarted
@@ -206,6 +207,8 @@ private:
     int hoof_count_ = 0;
     std::deque<double> hoof_times_;
     double last_tick_ = 0, air_time_ = 0, horse_air_time_ = 0;
+    int last_me_ = 0;
+    bool was_loading_ = false;
     bool was_climbing_ = false, was_door_ = false;
     float step_strength_ = 1;
     float last_step_t_ = 0;

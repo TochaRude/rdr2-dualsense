@@ -20,6 +20,7 @@ std::string describe_outputs();
 
 class AudioEngine {
 public:
+    ~AudioEngine() { stop(); }
     bool start(HapticLibrary* lib);
     void stop();
     // reopen every device stream (the controller was unplugged / reconnected)

@@ -12,8 +12,8 @@
 namespace dsr2 {
 
 Core& core() {
-    static Core c;
-    return c;
+    static Core* c = new Core();
+    return *c;
 }
 
 void Core::load_data() {
@@ -54,7 +54,8 @@ void Core::load_data() {
     audio_.set_strength(c.num("Haptics", "Strength", 1.0f));
     audio_.set_speaker_volume(spk_vol);
     audio_.set_duck(c.num("Haptics", "Duck", 0.3f));
-    audio_.set_rumble_gain(c.num("Haptics", "GameRumble", 0.15f));
+    game_rumble_gain_ = c.num("Haptics", "GameRumble", 0.15f);
+    audio_.set_rumble_gain(frozen_rumble_fallback_ ? std::max(game_rumble_gain_, 0.6f) : game_rumble_gain_);
     // Bluetooth: haptics as audio in the controller's reports (Bluetooth=0: the rumble motors instead). The sample
     // format and the channel order are switchable while testing (BluetoothFormat=s8 / u8, BluetoothSwap=1).
     audio_.set_bluetooth_options(c.flag("Haptics", "Bluetooth", true), c.str("Haptics", "BluetoothFormat", "s8") == "u8",
@@ -221,7 +222,8 @@ bool Core::on_input(const InputState& s, OutputState& out) {
     // In the pause menu and on loading screens the game's scripts stand still - and so does our picture of the game.
     // A stale picture must not keep anything going (the gait rhythm galloped on in the pause menu): treat it as
     // halted, mute the game-clock tracks (dialogue) and the game's rumble until it moves again.
-    const bool frozen = in_game_ && g.valid && s.t - g.time > 0.25;
+    const bool frozen = in_game_ && g.time > 0.0 && s.t - g.time > 0.25;
+    const double frozen_for = frozen ? (s.t - g.time) : 0.0;
     const bool in_menu = in_game_ && (!g.valid || g.menu || frozen);
     if (frozen) {
         g.halted = true;
@@ -403,7 +405,7 @@ bool Core::on_input(const InputState& s, OutputState& out) {
             audio_.play(c);
         }
     // debug: what still plays while the game state is frozen (should be nothing)
-    if (in_game_ && g.valid && log::debug_enabled()) {
+    if (in_game_ && g.time > 0.0 && log::debug_enabled()) {
         if (frozen != frozen_) {
             frozen_ = frozen;
             frozen_log_t_ = s.t;
@@ -444,8 +446,30 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         const bool can_gyro = !in_game_ || (g.valid && !g.blocked && !paused && !in_menu);
         input().track_gyro(s, real_weapon_aim, can_gyro);
     }
-    if (paused || frozen || in_menu) audio_.set_rumble(0, 0);   // mute game rumble in wheel/menus/loading
-    else audio_.set_rumble(input().rumble_low(), input().rumble_high());
+    const float rl = input().rumble_low(), rh = input().rumble_high();
+    if (frozen) {
+        if (frozen_for >= 15.0 && !frozen_warned_) {
+            frozen_warned_ = true;
+            LOGW("game state frozen for %.0f s - script thread is not ticking (pause/loading or ScriptHook stopped)", frozen_for);
+        }
+        const bool fallback = should_fallback_rumble(frozen, paused, frozen_for, rl, rh, frozen_rumble_fallback_);
+        if (fallback && !frozen_rumble_fallback_) {
+            frozen_rumble_fallback_ = true;
+            audio_.set_rumble_gain(std::max(game_rumble_gain_, 0.6f));
+            LOGW("script thread stalled for %.0f s while game is active - falling back to native game rumble", frozen_for);
+        }
+        if (fallback) audio_.set_rumble(rl, rh);
+        else audio_.set_rumble(0, 0);
+    } else {
+        if (frozen_rumble_fallback_) {
+            frozen_rumble_fallback_ = false;
+            audio_.set_rumble_gain(game_rumble_gain_);
+            LOGI("script thread live again - full DualSense haptics restored");
+        }
+        frozen_warned_ = false;
+        if (paused || in_menu) audio_.set_rumble(0, 0);   // mute game rumble in wheel/menus/loading
+        else audio_.set_rumble(rl, rh);
+    }
     if (!audio_.ok() && haptics_on_) {
         out.has_rumble = true;
         audio_.rumble_tick(s.t, out.rumble_left, out.rumble_right);

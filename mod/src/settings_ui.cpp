@@ -30,18 +30,43 @@ struct PageRow {
 struct Page {
     Hash root = 0;
     std::vector<PageRow> rows;
-} page;
+    bool need_verify = false;
+    double last_try = -10.0;
+};
 
-void create_store() {
-    page.root = DATABINDING_ADD_DATA_CONTAINER_FROM_PATH("", "DualSenseSettings");
-    page.rows.clear();
-    if (!page.root) return;
+Page& ui_page() {
+    static auto* p = new Page();
+    return *p;
+}
+
+bool store_healthy(const Page& p) {
+    if (!p.root || !DATABINDING_IS_ENTRY_VALID(p.root) || p.rows.empty()) return false;
+    if (DATABINDING_READ_INT_FROM_PARENT(p.root, "ready") != 1) return false;
+    for (const PageRow& r : p.rows)
+        if (!r.store || !DATABINDING_IS_ENTRY_VALID(r.store)) return false;
+    return true;
+}
+
+void create_store(double now) {
+    Page& p = ui_page();
+    p.last_try = now;
+    Hash root = DATABINDING_ADD_DATA_CONTAINER_FROM_PATH("", "DualSenseSettings");
+    if (!root) {
+        Hash existing = DATABINDING_GET_DATA_CONTAINER_FROM_PATH("DualSenseSettings");
+        if (existing && DATABINDING_IS_ENTRY_VALID(existing)) {
+            DATABINDING_REMOVE_DATA_ENTRY(existing);
+            root = DATABINDING_ADD_DATA_CONTAINER_FROM_PATH("", "DualSenseSettings");
+        }
+    }
+    p.root = root;
+    p.rows.clear();
+    if (!p.root) return;
     for (const MenuEntry& e : SettingsMenu::entries()) {
         if (e.kind == MenuEntry::Header) continue;
         // the data context of the row's stepper: value (two-way), prompt, enabled, visible, and
         //   levels  (our percent stepper = the game's list_item_int_stepper): minimum, maximum, step
         //   others  (list_item_option_stepper): options = text labels, value = index
-        Hash h = DATABINDING_ADD_DATA_CONTAINER(page.root, e.id);
+        Hash h = DATABINDING_ADD_DATA_CONTAINER(p.root, e.id);
         if (!h) continue;
         int v = SettingsMenu::page_value(e, config());
         if (e.kind == MenuEntry::Number) {
@@ -57,23 +82,35 @@ void create_store() {
         DATABINDING_ADD_DATA_STRING(h, "prompt", "");
         DATABINDING_ADD_DATA_BOOL(h, "enabled", true);
         DATABINDING_ADD_DATA_BOOL(h, "visible", true);
-        page.rows.push_back({&e, h, v});
+        p.rows.push_back({&e, h, v});
     }
     // the "DualSense" row in Settings > Controls shows only while this is 1 (controls.ymt,
     // uiConditionCheckGenericDatastoreInt) - i.e. once the page has its values (not on the title screen)
-    DATABINDING_ADD_DATA_INT(page.root, "ready", 1);
-    LOGD("settings page: data store ready (0x%08X, %zu rows)", page.root, page.rows.size());
+    DATABINDING_ADD_DATA_INT(p.root, "ready", 1);
+    LOGI("settings page: data store ready (0x%08X, %zu rows)", p.root, p.rows.size());
 }
 
 }  // namespace
 
-void settings_ui_tick(double /*now*/) {
-    if (!page.root || !DATABINDING_IS_ENTRY_VALID(page.root)) {
-        create_store();
+void settings_ui_mark_dirty() { ui_page().need_verify = true; }
+
+void settings_ui_tick(double now) {
+    Page& p = ui_page();
+    bool valid = p.need_verify ? store_healthy(p) : (p.root && DATABINDING_IS_ENTRY_VALID(p.root));
+    p.need_verify = false;
+    if (!valid) {
+        if (now - p.last_try < 0.5) return;
+        if (p.root) {
+            LOGI("settings page: data store invalidated - rebuilding");
+            if (DATABINDING_IS_ENTRY_VALID(p.root)) DATABINDING_REMOVE_DATA_ENTRY(p.root);
+        }
+        p.root = 0;
+        p.rows.clear();
+        create_store(now);
         return;
     }
     std::vector<std::tuple<std::string, std::string, std::string>> updates;
-    for (PageRow& r : page.rows) {
+    for (PageRow& r : p.rows) {
         if (!r.store || !DATABINDING_IS_ENTRY_VALID(r.store)) continue;
         const MenuEntry& e = *r.entry;
         int v = DATABINDING_READ_INT_FROM_PARENT(r.store, "value");

@@ -61,6 +61,7 @@ public:
     // Called on the I/O thread for every input report (or ~every 10 ms); fill `out` and return true to send it.
     using Handler = std::function<bool(const InputState&, OutputState& out)>;
 
+    ~DualSense() { stop(); }
     bool start(Handler h);
     void stop();
     bool connected() const { return connected_.load(); }
