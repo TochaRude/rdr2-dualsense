@@ -83,6 +83,7 @@ class World {
 public:
     void tick();                                     // script thread, every frame
     void shutdown();                                 // stop background surface worker on unload
+    void on_script_reload();                         // reset transient state after ScriptHook V2 reload
     // hoof diagnostics (debug log)
     int hoof_plants_ = 0;
     int foot_plants_ = 0;                // debug: steps felt since foot_stat_t_

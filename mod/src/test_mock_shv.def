@@ -1,0 +1,15 @@
+LIBRARY ScriptHookRDR2.dll
+EXPORTS
+    ?scriptRegister@@YAXPEAUHINSTANCE__@@P6AXXZ@Z = mock_scriptRegister
+    ?scriptRegisterAdditionalThread@@YAXPEAUHINSTANCE__@@P6AXXZ@Z = mock_scriptRegisterAdditionalThread
+    ?scriptUnregister@@YAXPEAUHINSTANCE__@@@Z = mock_scriptUnregister
+    ?scriptWait@@YAXK@Z = mock_scriptWait
+    ?nativeInit@@YAX_K@Z = mock_nativeInit
+    ?nativePush64@@YAX_K@Z = mock_nativePush64
+    ?nativeCall@@YAPEA_KXZ = mock_nativeCall
+    ?worldGetAllPeds@@YAHPEAHH@Z = mock_worldGetAllPeds
+    ?getGameVersion@@YA?AW4eGameVersion@@XZ = mock_getGameVersion
+    ?getGlobalPtr@@YAPEA_KH@Z = mock_getGlobalPtr
+    ?getScriptHandleBaseAddress@@YAPEAEH@Z = mock_getScriptHandleBaseAddress
+    mock_shv_counts
+    mock_shv_run_once

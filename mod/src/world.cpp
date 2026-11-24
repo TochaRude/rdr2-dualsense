@@ -744,6 +744,15 @@ void World::reset_session_state() {
     explosion_on_ = false;
 }
 
+void World::on_script_reload() {
+    reset_session_state();
+    was_loading_ = false;
+    settings_ui_mark_dirty();
+    std::lock_guard<std::mutex> l(mu_);
+    snap_ = GameSnapshot{};
+    snap_.time = now_s();
+}
+
 void World::tick() {
     using namespace nat;
     Config& cfg = config();

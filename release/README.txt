@@ -1,4 +1,4 @@
-DualSense for RDR2  v1.3.0-fork.2-test.1  -  Community Fork (based on OldKrab's v1.3.0)
+DualSense for RDR2  v1.3.0-fork.2-test.2  -  Community Fork (based on OldKrab's v1.3.0)
 ===================================================================================
 
 Unofficial community fork by TochaRude, adapted with the help of Antigravity
@@ -33,7 +33,7 @@ INSTALL
 Copy everything from this zip into the game folder - the folder with RDR2.exe in it, not a subfolder
 (a file one folder too deep is simply never loaded):
     DualSenseRDR2.asi
-    DualSenseRDR2\  (folder with weapons.json, haptics.json, sound_labels.json, speech_voices.txt)
+    DualSenseRDR2\  (folder with DualSenseCore.dll, weapons.json, haptics.json, sound_labels.json, speech_voices.txt)
     lml\            (merges into LML's folder: lml\DualSenseRDR2 and one archive in lml\replace)
 Start the game. Settings are created on first start in DualSenseRDR2.ini.
 If you use LML's Mod Manager, make sure "DualSense for RDR2 - Settings page" is enabled.
@@ -141,6 +141,12 @@ Source code (MIT): see the mod page.
 
 CHANGES
 -------
+1.3.0-fork.2-test.2  ScriptHookRDR2 V2 save-load hot-reload fix:
+              - Split thin CRT-free DualSenseRDR2.asi loader shim from DualSenseRDR2\DualSenseCore.dll.
+              - Background worker threads now pin DualSenseCore.dll rather than DualSenseRDR2.asi, allowing
+                ScriptHookRDR2 V2's FreeLibrary/LoadLibrary save-load cycle to cleanly unload and reload
+                DualSenseRDR2.asi, re-register script_main (#2+), rebuild DualSenseSettings, and resume
+                full DualSense haptics/triggers immediately while keeping XInput hooks & text nodes pinned.
 1.3.0-fork.2-test.1  Test build addressing exit crash and manual save-load issues:
               - Exit crash fix (0xc0000409 / 0x40000015): process-lifetime singletons and background
                 thread globals are never torn down via CRT atexit destructors during ExitProcess, and
