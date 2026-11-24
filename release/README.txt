@@ -1,5 +1,5 @@
-DualSense for RDR2  v1.3.0-fork.2-test.2  -  Community Fork (based on OldKrab's v1.3.0)
-===================================================================================
+DualSense for RDR2  v1.3.0-fork.2  -  Community Fork (based on OldKrab's v1.3.0)
+==============================================================================
 
 Unofficial community fork by TochaRude, adapted with the help of Antigravity
 (not an official collaboration with OldKrab; full credit for the original mod belongs to OldKrab).
@@ -141,21 +141,18 @@ Source code (MIT): see the mod page.
 
 CHANGES
 -------
-1.3.0-fork.2-test.2  ScriptHookRDR2 V2 save-load hot-reload fix:
-              - Split thin CRT-free DualSenseRDR2.asi loader shim from DualSenseRDR2\DualSenseCore.dll.
-              - Background worker threads now pin DualSenseCore.dll rather than DualSenseRDR2.asi, allowing
-                ScriptHookRDR2 V2's FreeLibrary/LoadLibrary save-load cycle to cleanly unload and reload
-                DualSenseRDR2.asi, re-register script_main (#2+), rebuild DualSenseSettings, and resume
-                full DualSense haptics/triggers immediately while keeping XInput hooks & text nodes pinned.
-1.3.0-fork.2-test.1  Test build addressing exit crash and manual save-load issues:
+1.3.0-fork.2  Stability, exit-crash, and save-load reload fixes:
               - Exit crash fix (0xc0000409 / 0x40000015): process-lifetime singletons and background
-                thread globals are never torn down via CRT atexit destructors during ExitProcess, and
-                shv_scriptUnregister is skipped on process exit.
-              - Save-load recovery: skip entity/UI/world natives during loading screens & player switches,
-                reset stale per-session handles when loading a save, and verify/rebuild DualSenseSettings
-                after ScriptDatastoreRoot is reset by the game.
-              - Diagnostics & fallback: log ScriptHook script_main thread entries, warn on sustained script
-                stalls, and pass native game rumble through when gameplay rumble arrives while stalled.
+                thread slots remain immortal across ExitProcess instead of running CRT atexit destructors
+                on active threads, and shv_scriptUnregister is skipped on process exit.
+              - ScriptHookRDR2 V2 save-load hot-reload fix: split thin CRT-free DualSenseRDR2.asi loader
+                shim from pinned DualSenseRDR2\DualSenseCore.dll so FreeLibrary/LoadLibrary reloads drop
+                the .asi refcount to 0 cleanly, re-register script_main (#2+), and resume haptics/triggers
+                immediately while XInput hooks and string-table nodes stay intact.
+              - Save-load hardening & diagnostics: skip entity/UI/world natives during loading screens and
+                player switches, reset stale per-session handles on save loads, verify and rebuild
+                ScriptDatastoreRoot.DualSenseSettings automatically, log script thread starts/stalls, and
+                pass native game rumble through if the script thread ever stalls during active gameplay.
 1.3.0-fork.1  Community fork release based on OldKrab's v1.3.0 (adapted with Antigravity):
               Controller Speaker: enforced real HID hardware speaker mute + audio-thread voice purge when
               Mechanics=0; focused speaker output strictly on authentic in-game RDR2 .awc recordings (hip-holster

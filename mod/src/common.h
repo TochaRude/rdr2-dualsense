@@ -20,7 +20,7 @@ namespace dsr2 {
 
 namespace fs = std::filesystem;
 
-constexpr const char* kVersion = "1.3.0-fork.2-test.2";
+constexpr const char* kVersion = "1.3.0-fork.2";
 constexpr float kPi = 3.14159265358979f;
 
 inline double now_s() {
