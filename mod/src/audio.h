@@ -78,10 +78,11 @@ private:
         size_t pos = 0;
         bool speaker = false;
         bool scripted = true;
+        uint32_t tag = 0;
     };
     struct EnvVoice {
         std::vector<std::pair<float, float>> env;   // per 4 ms
-        double t0;
+        double t0 = 0;
     };
 
     struct Track {

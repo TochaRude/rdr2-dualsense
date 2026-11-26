@@ -30,6 +30,7 @@ struct Calibration {
 
 struct Settings {
     bool manual_action = true;
+    bool hammer_slip = true;
     bool fanning = true;
     bool auto_align = true;
     int fire_margin = 4;
@@ -55,6 +56,7 @@ struct GameHints {
     int melee_hits = 0;             // counter: damage the player dealt in melee range
     int melee_ko = 0;               // counter: melee knockouts / final blows
     bool melee_target_near = false;
+    bool can_quickdraw = false;
     bool hip_fire = true;           // not aiming down the sights
     bool dual_wield = false;        // two guns: the game alternates them
     bool ready = true;              // the game says the gun can fire (cooldown over, hammer cocked...)
@@ -68,6 +70,7 @@ struct EngineFrame {
     int game_rt = -1;               // -1 = pass the real R2 through
     std::string state;
     bool flash = false;             // muzzle flash (lightbar)
+    float fuse = 0.0f;              // 0..1 lit dynamite/molotov fuse urgency (lightbar)
 };
 
 class WeaponEngine {
@@ -107,7 +110,7 @@ private:
     fx::Block update_reload(double now, EngineFrame& f);
     fx::Block update_auto(int raw, double now, EngineFrame& f);
     fx::Block update_bow(int raw, double now, EngineFrame& f);
-    fx::Block update_melee(uint32_t pressed, double now, EngineFrame& f, const GameHints& g);
+    fx::Block update_melee(int raw, uint32_t pressed, double now, EngineFrame& f, const GameHints& g);
     fx::Block update_tension(int raw, uint32_t pressed, double now, EngineFrame& f, const GameHints& g);
     fx::Block update_fishing(int raw, double now, EngineFrame& f, const GameHints& g);
     void analyse(double now);
@@ -119,7 +122,7 @@ private:
     Zones curve_{}, after_curve_{}, action_curve_{};
     std::array<int, 3> weapon_fx_{4, 6, 6}, simple_fx_{100, 160, 200};
     int break_raw_ = 0, break_zone_ = 6, reset_raw_ = 0, stop_zone_ = 0, stop_strength_ = 8, action_break_raw_ = 0;
-    bool reset_click_ = true, action_fan_ = false;
+    bool reset_click_ = true, action_fan_ = false, double_action_ = false;
     float grit_ = 0, lock_s_ = 0.005f, rate_s_ = 0.4f, haptic_gain_ = 1.0f, action_min_s_ = 0.12f;
     std::string pre_cue_, action_type_ = "none", action_open_, action_close_;
     Kick kick_;
@@ -157,12 +160,14 @@ private:
     // in-game melee confirmation
     struct Strike { double deadline; float pan; int hits_at_start; int ko_at_start; bool done; };
     std::vector<Strike> strikes_;
-    double melee_kick_until_ = -10;
-    int melee_kick_amp_ = 0;
-    bool melee_kick_both_ = false;
     int melee_hits_seen_ = -1, melee_ko_seen_ = -1;
     int bow_creak_stage_ = 0;
     double bow_strain_t_ = -10;
+    double lasso_spin_t_ = -10;
+    bool lasso_saw_unready_ = false;
+    bool hammer_slipped_ = false, hammer_slip_wait_reset_ = false;
+    double hammer_slip_until_ = -10;
+    fx::Block hammer_slip_fx_ = fx::off();
     // fire-rate sync: shots the game did not take
     double unconfirmed_since_ = -1;
     bool ready_usable_ = true;      // false if the game's readiness signal doesn't behave for this gun
@@ -184,6 +189,10 @@ private:
     bool in_game_ = false;
     double await_fire_ = -1, fire_t_ = -10;
     int await_variant_ = -1;
+    bool fuse_lit_ = false;
+    double fuse_t_ = -10.0, next_fuse_crackle_ = -10.0;
+    double quickdraw_t_ = -10.0, next_qd_pulse_ = -10.0;
+    bool qd_snapped_ = false;
     float dirt() const { return in_game_ ? clampv(game_grit_, 0.0f, 1.0f) : 0.0f; }
     Zones action_feel() const;       // the R2 stroke that works the action: clockwork when clean, mud when dirty
     Zones after_feel() const;        // the trigger after the shot: free when clean, dragging when dirty

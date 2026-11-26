@@ -62,7 +62,7 @@ Copy-Item $asi (Join-Path $GameDir "DualSenseRDR2.asi") -Force
 $data = Join-Path $GameDir "DualSenseRDR2"
 New-Item -ItemType Directory -Force $data | Out-Null
 Copy-Item $coreDll (Join-Path $data "DualSenseCore.dll") -Force
-foreach ($f in "weapons.json", "haptics.json", "calibration.json", "sound_labels.json", "speech_voices.txt") {
+foreach ($f in "weapons.json", "haptics.json", "calibration.json", "sound_labels.json", "speech_voices.txt", "translations.json") {
     $src = Join-Path $lab $f
     if (Test-Path $src) { Copy-Item $src (Join-Path $data $f) -Force; Write-Host "  data: $f" }
 }

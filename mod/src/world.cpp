@@ -8,6 +8,7 @@
 #include "log.h"
 #include "input.h"
 #include "natives.h"
+#include "text_inject.h"
 
 namespace dsr2 {
 
@@ -728,8 +729,10 @@ void World::reset_session_state() {
     feet_ped_ = hooves_horse_ = 0;
     hoof_count_ = 0;
     hoof_times_.clear();
-    swim_ped_ = paddle_horse_ = 0;
-    swim_was_ = horse_swim_was_ = false;
+    swim_ped_ = paddle_horse_ = oar_ped_ = 0;
+    swim_was_ = horse_swim_was_ = oar_was_ = false;
+    oar_last_t_[0] = oar_last_t_[1] = -10;
+    boat_heading_ok_ = wagon_speed_ok_ = false;
     damaged_me_by_ = 0;
     damaged_me_t_ = -10;
     reply_target_ = 0;
@@ -794,6 +797,7 @@ void World::tick() {
         settings_ui_mark_dirty();
     }
     last_me_ = me;
+    text_inject_set_game_lang(GET_CURRENT_LANGUAGE());
     if (!game_files::ready()) core().load_game_files();   // scripts run: the game's archives are mounted
     settings_ui_tick(s.time);
     limb_probe_ = log::debug_enabled() && cfg.flag("General", "Record", false);   // recorder, bush probe, cue log
@@ -895,9 +899,11 @@ void World::tick() {
         if (GET_AMMO_IN_CLIP(me, &ammo, w)) s.clip = ammo;
         s.clip_max = GET_MAX_AMMO_IN_CLIP(me, w);
         if (cfg.flag("Triggers", "AmmoTypeRecoil", true)) s.kick_mult = ammo_kick(GET_PED_AMMO_TYPE_FROM_WEAPON(me, w));
-        if (cfg.flag("Triggers", "ConditionGrit", true)) {
-            Entity obj = GET_CURRENT_PED_WEAPON_ENTITY_INDEX(me);
-            if (obj) s.grit = clampv(0.6f * GET_WEAPON_DEGRADATION(obj) + 0.4f * GET_WEAPON_DIRT(obj), 0.0f, 1.0f);
+        Entity obj = GET_CURRENT_PED_WEAPON_ENTITY_INDEX(me);
+        if (obj) {
+            float dirt_val = clampv(0.6f * GET_WEAPON_DEGRADATION(obj) + 0.4f * GET_WEAPON_DIRT(obj), 0.0f, 1.0f);
+            s.weapon_dirt = dirt_val;
+            if (cfg.flag("Triggers", "ConditionGrit", true)) s.grit = dirt_val;
         }
     }
     // fishing: the game's own fishing task (read only - the fishing script writes it back every frame)
@@ -927,6 +933,7 @@ void World::tick() {
         fish_log_state_ = -1;
     }
     s.dead_eye = IS_SPECIAL_ABILITY_ACTIVE(pl);
+    s.eagle_eye = !s.dead_eye && IS_SECONDARY_SPECIAL_ABILITY_ACTIVE(pl);
     s.deadeye_marks = s.dead_eye ? GET_NUM_MARKED_DEADEYE_TARGETS(pl) : 0;
     if (s.deadeye_marks != marks_logged_) {
         LOGD("dead eye: %d marked", s.deadeye_marks);
@@ -1002,6 +1009,7 @@ void World::tick() {
         bool gold_h_stam = IS_ATTRIBUTE_CORE_OVERPOWERED(horse, 1) || IS_ATTRIBUTE_OVERPOWERED(horse, 1);
         s.mount_stamina = gold_h_stam ? 100 : GET_ATTRIBUTE_CORE_VALUE(horse, 1);
         s.mount_pitch = GET_ENTITY_ROTATION(horse).x;
+        s.mount_agitation = clampv(GET_PED_MOTIVATION(horse, 3, 0), 0.0f, 1.0f);
         s.horse_wade = GET_ENTITY_SUBMERGED_LEVEL(horse);
         s.horse_foliage = _GET_PED_BLACKBOARD_BOOL(horse, "FoliageActive");
         s.horse_foliage_height = s.horse_foliage ? _GET_PED_BLACKBOARD_FLOAT(horse, "FoliageHeight") : 0.0f;
@@ -1072,8 +1080,74 @@ void World::tick() {
     s.in_vehicle = IS_PED_IN_ANY_VEHICLE(me);
     s.speed = GET_ENTITY_SPEED(me);
     s.carrying = IS_PED_CARRYING_SOMETHING(me);
+    s.can_quickdraw = !s.armed && !s.blocked && !s.on_mount && !s.in_vehicle && !s.in_train && !s.in_boat &&
+                      !s.swimming && !s.carrying && !s.aiming && !IS_PED_IN_MELEE_COMBAT(me);
     // mounting / dismounting a horse or climbing onto / off a wagon (excluding trains and boats)
     const bool in_wagon = s.in_vehicle && !s.in_train && !s.in_boat;
+    if (in_wagon && !s.halted) {
+        double dt = clampv(s.time - last_tick_, 0.005, 0.1);
+        float decel = wagon_speed_ok_ ? (wagon_speed_prev_ - s.speed) / float(dt) : 0.0f;
+        wagon_speed_prev_ = s.speed;
+        wagon_speed_ok_ = true;
+        static const Hash kVehBrake = joaat("INPUT_VEH_BRAKE"), kVehHandbrake = joaat("INPUT_VEH_HANDBRAKE");
+        bool brake_held = IS_CONTROL_PRESSED(0, kVehBrake) || IS_CONTROL_PRESSED(0, kVehHandbrake);
+        if (s.speed > 1.2f && ((brake_held && decel > 1.8f) || decel > 3.8f)) {
+            s.vehicle_braking = true;
+            s.vehicle_decel = clampv(decel / 8.0f, 0.25f, 1.0f);
+            s.vehicle_surface = surface_at(pos.x, pos.y, pos.z, me);
+        }
+    } else {
+        wagon_speed_ok_ = false;
+    }
+    // boat rowing: detect oar pulls from Arthur's left and right hands along boat heading
+    if (s.in_boat && !s.halted) {
+        double dt = clampv(s.time - last_tick_, 0.005, 0.1);
+        float hdg = GET_ENTITY_HEADING(me);
+        float yaw_rate = boat_heading_ok_ ? wrap180(hdg - boat_heading_prev_) / float(dt) : 0.0f;
+        boat_heading_prev_ = hdg;
+        boat_heading_ok_ = true;
+        if (!oar_was_ || me != oar_ped_) {
+            oar_ped_ = me;
+            oar_[0] = Stroke{};
+            oar_[1] = Stroke{};
+            oar_[0].bone = GET_ENTITY_BONE_INDEX_BY_NAME(me, "SKEL_L_Hand");
+            oar_[1].bone = GET_ENTITY_BONE_INDEX_BY_NAME(me, "SKEL_R_Hand");
+        }
+        const bool active_row = s.speed > 0.35f || std::fabs(yaw_rate) > 8.0f;
+        const float hd = hdg * kPi / 180.0f, fx = -std::sin(hd), fy = std::cos(hd);
+        const Vector3 b = GET_ENTITY_COORDS(me);
+        for (int i = 0; i < 2; ++i) {
+            Stroke& S = oar_[i];
+            if (S.bone < 0) continue;
+            const Vector3 p = GET_WORLD_POSITION_OF_ENTITY_BONE(me, S.bone);
+            const float f = (p.x - b.x) * fx + (p.y - b.y) * fy;
+            if (!S.init) { S.init = true; S.top = S.low = f; continue; }
+            const float d = std::max(0.045f, 0.15f * S.size);
+            if (S.state == 0) {
+                S.top = std::max(S.top, f);
+                if (S.top - f <= d) continue;
+                const float len = S.top - S.low;
+                S.size = 0.7f * S.size + 0.3f * std::max(0.08f, len);
+                S.state = 1;
+                S.low = f;
+                if (active_row && s.time - oar_last_t_[i] >= 0.28) {
+                    oar_last_t_[i] = s.time;
+                    float turn_bias = clampv(-yaw_rate / 60.0f, -0.35f, 0.35f);
+                    float pan = clampv((i == 0 ? -0.45f : 0.45f) + turn_bias, -0.9f, 0.9f);
+                    float reach = clampv(len / 0.45f, 0.45f, 1.0f);
+                    float str = clampv(0.5f + s.speed / 6.0f, 0.55f, 1.0f) * reach;
+                    ev.push_back({WorldEvent::Swim, pan, str, "oar"});
+                }
+            } else {
+                S.low = std::min(S.low, f);
+                if (f - S.low > d) { S.state = 0; S.top = f; }
+            }
+        }
+        oar_was_ = true;
+    } else {
+        oar_was_ = false;
+        boat_heading_ok_ = false;
+    }
     if (!s.halted) {
         if (mount_seen_) {
             if (s.on_mount && !was_on_mount_) {

@@ -285,10 +285,15 @@ void AudioEngine::play(const Cue& c) {
     bool has_spk = false;
     if (c.speaker && live && !bt_active_.load() && speaker_vol_.load() > 0.001f)
         has_spk = lib_->speaker_sound(c, spk);
+    const uint32_t tag = (c.name == "lasso_spin" || c.name == "lasso_throw") ? 1u : 0u;
     std::lock_guard<std::mutex> l(mu_);
-    if (live) incoming_.push_back({std::move(buf), 0, false, c.scripted});
+    if (tag != 0) {
+        incoming_.erase(std::remove_if(incoming_.begin(), incoming_.end(), [tag](const Voice& v) { return v.tag == tag; }),
+                        incoming_.end());
+    }
+    if (live) incoming_.push_back({std::move(buf), 0, false, c.scripted, tag});
     else env_voices_.push_back(std::move(env_v));
-    if (has_spk) incoming_.push_back({std::move(spk), 0, true, false});
+    if (has_spk) incoming_.push_back({std::move(spk), 0, true, false, tag});
 }
 
 void AudioEngine::track_play(uint64_t key, std::shared_ptr<const std::vector<float>> mono, double t0, float gl, float gr) {
@@ -439,7 +444,14 @@ void AudioEngine::render_thread() {
 void AudioEngine::mix_block(std::vector<float>& mix, uint32_t n, float sr) {
     {
         std::lock_guard<std::mutex> l(mu_);
-        for (auto& v : incoming_) mix_voices_.push_back(std::move(v));
+        for (auto& v : incoming_) {
+            if (v.tag != 0) {
+                mix_voices_.erase(std::remove_if(mix_voices_.begin(), mix_voices_.end(),
+                                                 [&](const Voice& e) { return e.tag == v.tag && e.speaker == v.speaker; }),
+                                  mix_voices_.end());
+            }
+            mix_voices_.push_back(std::move(v));
+        }
         incoming_.clear();
     }
     if (purge_speaker_.exchange(false, std::memory_order_acquire)) {

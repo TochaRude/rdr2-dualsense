@@ -11,11 +11,16 @@
 #include "text_inject.h"
 
 #include "common.h"
+#include "config.h"
 #include "log.h"
+
+#include "../third_party/json.hpp"
 
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <fstream>
+#include <map>
 #include <thread>
 #include <vector>
 
@@ -25,11 +30,13 @@ namespace {
 
 struct Text {
     const char* key;
-    const char* text;
+    const char* en;
 };
 const Text kTexts[] = {
 #include "settings_texts.inc"
 };
+
+std::atomic<int> g_game_lang{-1};
 
 // labels in global.yldb of every language: used to find the table and to prove we found the right one
 const char* const kProbes[] = {"MO_ON", "MO_OFF", "IB_BACK", "IB_SELECT"};
@@ -207,18 +214,72 @@ struct Node {
     uint64_t next;
 };
 
+bool read_node_text(const Table& t, uint32_t key, std::string& out) {
+    uintptr_t node = find_in(t, key);
+    if (!node) return false;
+    uint64_t n[3], v[4];
+    if (!readm(node, n, sizeof n) || !readm(n[1], v, sizeof v)) return false;
+    uint64_t len = v[3];
+    if (len < 2 || len > 256) return false;
+    char s[256];
+    if (!readm(v[2], s, len) || s[len - 1] != 0) return false;
+    out.assign(s);
+    return true;
+}
+
+std::string detect_lang(const Table& t) {
+    std::string ov = parse_language_override(config().str("General", "Language", "auto"));
+    if (!ov.empty()) return ov;
+    int gl = g_game_lang.load(std::memory_order_relaxed);
+    if (gl >= 0) return game_lang_code(gl);
+    std::string on, off, back, sel;
+    read_node_text(t, joaat("MO_ON"), on);
+    read_node_text(t, joaat("MO_OFF"), off);
+    read_node_text(t, joaat("IB_BACK"), back);
+    read_node_text(t, joaat("IB_SELECT"), sel);
+    return detect_lang_from_probes(on, off, back, sel);
+}
+
+std::map<std::string, std::string> load_lang_dict(const std::string& lang, std::string& used_lang) {
+    std::map<std::string, std::string> dict;
+    used_lang = "en";
+    if (lang.empty() || lang == "en") return dict;
+    std::ifstream in(data_dir() / "translations.json");
+    if (!in) {
+        LOGI("texts: translations.json not found - falling back to English");
+        return dict;
+    }
+    nlohmann::json j = nlohmann::json::parse(in, nullptr, false);
+    if (!j.is_object() || !j.contains(lang) || !j[lang].is_object()) {
+        LOGI("texts: language '%s' not available - falling back to English", lang.c_str());
+        return dict;
+    }
+    for (auto& [k, v] : j[lang].items()) {
+        if (v.is_string()) dict[k] = v.get<std::string>();
+    }
+    if (!dict.empty()) used_lang = lang;
+    return dict;
+}
+
 // our nodes, strings and value blocks in one block (kept for the life of the game)
-uintptr_t inject(const Table& t) {
+uintptr_t inject(const Table& t, const std::string& lang, std::string& used_lang) {
+    auto dict = load_lang_dict(lang, used_lang);
+    std::vector<std::string> resolved;
+    resolved.reserve(sizeof kTexts / sizeof kTexts[0]);
     size_t size = 0;
-    for (const Text& x : kTexts) size += ((std::strlen(x.text) + 16) & ~size_t(15)) + 32 + 32;
+    for (const Text& x : kTexts) {
+        resolved.push_back(resolve_translation(dict, x.key, x.en));
+        size += ((resolved.back().size() + 16) & ~size_t(15)) + 32 + 32;
+    }
     auto* mem = static_cast<uint8_t*>(VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
     if (!mem) return 0;
     uint8_t* p = mem;
     uintptr_t first = 0;
-    for (const Text& x : kTexts) {
-        size_t len = std::strlen(x.text) + 1;
+    for (size_t i = 0; i < resolved.size(); ++i) {
+        const std::string& txt = resolved[i];
+        size_t len = txt.size() + 1;
         auto* str = reinterpret_cast<char*>(p);
-        std::memcpy(str, x.text, len);
+        std::memcpy(str, txt.c_str(), len);
         p += (len + 15) & ~size_t(15);
         uint8_t* value = p;
         std::memcpy(value, t.value_head, 16);
@@ -227,7 +288,7 @@ uintptr_t inject(const Table& t) {
         p += 32;
         auto* node = reinterpret_cast<Node*>(p);
         p += 32;
-        uint32_t key = joaat(x.key);
+        uint32_t key = joaat(kTexts[i].key);
         auto* slot = reinterpret_cast<volatile LONG64*>(t.buckets + 8ull * (key % t.count));
         node->hash = key;
         node->value = reinterpret_cast<uint64_t>(value);
@@ -243,6 +304,7 @@ uintptr_t inject(const Table& t) {
 }
 
 std::atomic<bool> g_stop{false};
+std::atomic<bool> g_ready{false};
 std::thread& thread_slot() {
     static auto* t = new std::thread();
     return *t;
@@ -251,20 +313,34 @@ std::thread& thread_slot() {
 void run() {
     Table table;
     uintptr_t ours = 0;                           // our first node
+    std::string injected_lang;
     int misses = 0;
     while (!g_stop.load()) {
         for (int s = 0; s < (ours ? 50 : 20) && !g_stop.load(); ++s)
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         if (g_stop.load()) break;
-        if (ours && find_in(table, joaat(kTexts[0].key)) == ours) continue;     // still linked
-        if (ours) LOGI("texts: the game reloaded its string table - adding ours again");
-        ours = 0;
-        // the table loads during boot; if the quick look keeps failing well after that, search the long way
-        bool found = locate_fast(table) || (++misses % 30 == 0 && locate_slow(table));
-        if (!found) continue;
-        misses = 0;
-        ours = inject(table);
-        if (ours) LOGI("texts: %zu texts added", sizeof kTexts / sizeof kTexts[0]);
+        if (ours && find_in(table, joaat(kTexts[0].key)) == ours) {
+            std::string want = detect_lang(table);
+            if (want == injected_lang) continue;     // still linked and same requested language
+            LOGI("texts: language changed (%s -> %s) - updating texts", injected_lang.c_str(), want.c_str());
+        } else if (ours) {
+            LOGI("texts: the game reloaded its string table - adding ours again");
+        }
+        if (!ours || find_in(table, joaat(kTexts[0].key)) != ours) {
+            ours = 0;
+            // the table loads during boot; if the quick look keeps failing well after that, search the long way
+            bool found = locate_fast(table) || (++misses % 30 == 0 && locate_slow(table));
+            if (!found) continue;
+            misses = 0;
+        }
+        std::string want_lang = detect_lang(table);
+        std::string used_lang;
+        ours = inject(table, want_lang, used_lang);
+        if (ours) {
+            injected_lang = want_lang;
+            g_ready.store(true, std::memory_order_release);
+            LOGI("texts: %zu texts added (%s)", sizeof kTexts / sizeof kTexts[0], used_lang.c_str());
+        }
     }
 }
 
@@ -274,6 +350,7 @@ void text_inject_start() {
     std::thread& t = thread_slot();
     if (t.joinable()) return;
     g_stop = false;
+    g_ready = false;
     t = std::thread(run);
 }
 
@@ -282,5 +359,8 @@ void text_inject_stop() {
     std::thread& t = thread_slot();
     if (t.joinable()) t.join();
 }
+
+bool text_inject_ready() { return g_ready.load(std::memory_order_acquire); }
+void text_inject_set_game_lang(int id) { g_game_lang.store(id, std::memory_order_relaxed); }
 
 }  // namespace dsr2

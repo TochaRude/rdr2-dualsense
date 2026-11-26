@@ -285,62 +285,65 @@ std::string HapticLibrary::ensure_weapon(const json& prof) {
 
 struct SpeakerSpec {
     SpeakerCategory cat = SpeakerCategory::None;
+    const char* bank = "";
     const char* role = "";
-    float fm = 6.0f;
     float gain = 1.0f;
 };
 
-// Cue name -> speaker routing, optional game-audio role, pitch multiplier and balance.
+// Cue name -> speaker routing for authentic RDR2 game-audio recordings (no synthesized tones).
 static const SpeakerSpec& speaker_spec(const std::string& cue) {
     using C = SpeakerCategory;
     static const SpeakerSpec kNone{};
     static const std::map<std::string, SpeakerSpec> m = {
-        // --- Mech: real RDR2 recordings + crisp weapon/reel mechanical clicks ---
-        {"gun_draw", {C::Mech, "draw", 5.5f, 0.90f}},
-        {"gun_holster", {C::Mech, "holster", 5.5f, 0.90f}},
-        {"lasso_throw", {C::Mech, "lasso_throw", 5.5f, 0.90f}},
-        {"rope_jerk", {C::Mech, "rope_jerk", 5.0f, 0.90f}},
-        {"rope_catch", {C::Mech, "rope_jerk", 5.0f, 0.90f}},
-        {"bow_creak", {C::Mech, "rope_creak", 4.5f, 0.65f}},
-        {"hammer_cock", {C::Mech, "cock", 6.0f, 0.95f}},
-        {"hammer_cock_auto", {C::Mech, "cock", 6.0f, 0.95f}},
-        {"lever_open", {C::Mech, "lever_open", 6.0f, 0.95f}},
-        {"lever_open_big", {C::Mech, "lever_open", 6.0f, 0.95f}},
-        {"lever_close", {C::Mech, "lever_close", 6.0f, 0.95f}},
-        {"lever_close_big", {C::Mech, "lever_close", 6.0f, 0.95f}},
-        {"lever_cycle", {C::Mech, "lever_close", 6.0f, 0.95f}},
-        {"lever_cycle_big", {C::Mech, "lever_close", 6.0f, 0.95f}},
-        {"bolt_open", {C::Mech, "bolt_open", 6.0f, 0.95f}},
-        {"bolt_close", {C::Mech, "bolt_close", 6.0f, 0.95f}},
-        {"bolt_cycle", {C::Mech, "bolt_close", 6.0f, 0.95f}},
-        {"pump_back", {C::Mech, "pump_back", 6.0f, 0.95f}},
-        {"slide_small_back", {C::Mech, "pump_back", 6.0f, 0.95f}},
-        {"pump_forward", {C::Mech, "pump_forward", 6.0f, 0.95f}},
-        {"slide_small_forward", {C::Mech, "pump_forward", 6.0f, 0.95f}},
-        {"pump_cycle", {C::Mech, "pump_forward", 6.0f, 0.95f}},
-        {"slide_small_cycle", {C::Mech, "pump_forward", 6.0f, 0.95f}},
-        {"reload_round", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"reload_shell", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"stripper_clip", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"mag_in", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"mag_out", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"slide_release", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"topbreak_open", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"topbreak_close", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"breech_open", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"breech_close", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"cylinder_gate", {C::Mech, "reload", 6.0f, 0.95f}},
-        {"dry_fire", {C::Mech, "dry_fire", 6.5f, 1.00f}},
-        {"reel_click", {C::Mech, "", 7.5f, 0.50f}},
-        {"impact_blade", {C::Mech, "knife_graze", 5.0f, 0.80f}},
-        {"impact_blade_deep", {C::Mech, "knife_graze", 4.5f, 0.85f}},
+        // --- Mech: real RDR2 recordings only ---
+        {"gun_draw", {C::Mech, "", "draw", 0.90f}},
+        {"gun_holster", {C::Mech, "", "holster", 0.90f}},
+        {"bow_release", {C::Mech, "WEAPONS", "bow_release", 0.90f}},
+        {"lasso_spin", {C::Mech, "WEAPONS", "lasso_spin", 0.85f}},
+        {"lasso_throw", {C::Mech, "WEAPONS", "lasso_throw", 0.90f}},
+        {"rope_jerk", {C::Mech, "", "rope_jerk", 0.90f}},
+        {"rope_catch", {C::Mech, "", "rope_jerk", 0.90f}},
+        {"bow_creak", {C::Mech, "", "rope_creak", 0.65f}},
+        {"hammer_cock", {C::Mech, "", "cock", 0.95f}},
+        {"hammer_cock_auto", {C::Mech, "", "cock", 0.95f}},
+        {"lever_open", {C::Mech, "", "lever_open", 0.95f}},
+        {"lever_open_big", {C::Mech, "", "lever_open", 0.95f}},
+        {"lever_close", {C::Mech, "", "lever_close", 0.95f}},
+        {"lever_close_big", {C::Mech, "", "lever_close", 0.95f}},
+        {"lever_cycle", {C::Mech, "", "lever_close", 0.95f}},
+        {"lever_cycle_big", {C::Mech, "", "lever_close", 0.95f}},
+        {"bolt_open", {C::Mech, "", "bolt_open", 0.95f}},
+        {"bolt_close", {C::Mech, "", "bolt_close", 0.95f}},
+        {"bolt_cycle", {C::Mech, "", "bolt_close", 0.95f}},
+        {"pump_back", {C::Mech, "", "pump_back", 0.95f}},
+        {"slide_small_back", {C::Mech, "", "pump_back", 0.95f}},
+        {"pump_forward", {C::Mech, "", "pump_forward", 0.95f}},
+        {"slide_small_forward", {C::Mech, "", "pump_forward", 0.95f}},
+        {"pump_cycle", {C::Mech, "", "pump_forward", 0.95f}},
+        {"slide_small_cycle", {C::Mech, "", "pump_forward", 0.95f}},
+        {"reload_round", {C::Mech, "", "reload", 0.95f}},
+        {"reload_shell", {C::Mech, "", "reload", 0.95f}},
+        {"stripper_clip", {C::Mech, "", "reload", 0.95f}},
+        {"mag_in", {C::Mech, "", "reload", 0.95f}},
+        {"mag_out", {C::Mech, "", "reload", 0.95f}},
+        {"slide_release", {C::Mech, "", "reload", 0.95f}},
+        {"topbreak_open", {C::Mech, "", "reload", 0.95f}},
+        {"topbreak_close", {C::Mech, "", "reload", 0.95f}},
+        {"breech_open", {C::Mech, "", "reload", 0.95f}},
+        {"breech_close", {C::Mech, "", "reload", 0.95f}},
+        {"cylinder_gate", {C::Mech, "", "reload", 0.95f}},
+        {"dry_fire", {C::Mech, "", "dry_fire", 1.00f}},
+        {"impact_blade", {C::Mech, "", "knife_graze", 0.80f}},
+        {"impact_blade_deep", {C::Mech, "", "knife_graze", 0.85f}},
 
-        // --- UI: only crisp Dead Eye mark & weapon wheel detent clicks ---
-        {"wheel_tick", {C::UI, "", 5.5f, 0.55f}},
-        {"deadeye_mark", {C::UI, "", 7.0f, 0.85f}},
+        // --- Ambient: subtle non-spammy RDR2 weather & skinning recordings ---
+        {"rain_drop", {C::Ambient, "WATER", "rain_drop", 0.40f}},
+        {"hail_drop", {C::Ambient, "WATER", "hail_drop", 0.50f}},
+        {"skin_cut", {C::Ambient, "", "knife_graze", 0.55f}},
 
-        // --- Ambient: only real knife skinning recording ---
-        {"skin_cut", {C::Ambient, "knife_graze", 5.0f, 0.60f}},
+        // --- UI: subtle authentic RDR2 wheel / menu recordings ---
+        {"wheel_tick", {C::UI, "FRONTEND", "wheel_tick", 0.35f}},
+        {"ui_confirm", {C::UI, "FRONTEND", "ui_click", 0.35f}},
     };
     auto it = m.find(cue);
     return it == m.end() ? kNone : it->second;
@@ -356,7 +359,10 @@ bool HapticLibrary::speaker_sound(const Cue& cue, Stereo& out) {
     if (spec.cat == SpeakerCategory::None || cue.gain <= 0.001f) return false;
     const float scale = clampv(spec.gain * clampv(cue.gain, 0.15f, 1.5f), 0.05f, 1.35f);
     if (game_ && spec.role[0] != '\0') {
-        for (const std::string& bank : {cue.bank, std::string("WEAPONS")}) {
+        const std::vector<std::string> banks = spec.bank[0] != '\0'
+            ? std::vector<std::string>{spec.bank}
+            : std::vector<std::string>{cue.bank, std::string("WEAPONS")};
+        for (const std::string& bank : banks) {
             if (bank.empty()) continue;
             auto vs = game_->variants(bank, spec.role);
             if (!vs.empty()) {
@@ -378,19 +384,7 @@ bool HapticLibrary::speaker_sound(const Cue& cue, Stereo& out) {
             }
         }
     }
-    if (!recipes_.contains(cue.name)) return false;
-    const std::string cache_key = cue.name + "#spk" + std::to_string(int(std::lround(spec.fm * 10.0f)));
-    if (!buffers_.count(cache_key))
-        LOGD("speaker: %s (fm %.1f) - synthesized", cue.name.c_str(), double(spec.fm));
-    try {
-        const auto& v = render_recipe(cue.name, 0, true, spec.fm);
-        if (v.empty()) return false;
-        out = v[size_t(rng_.below(int(v.size())))];
-        for (float& x : out) x = clampv(x * scale, -1.0f, 1.0f);
-    } catch (...) {
-        return false;
-    }
-    return true;
+    return false;
 }
 
 }  // namespace dsr2

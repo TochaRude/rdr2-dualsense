@@ -31,6 +31,13 @@ public:
         if (!frozen || paused || frozen_for < 3.0) return false;
         return already_active || rl > 0.001f || rh > 0.001f;
     }
+    // Pure helper: gate Cross confirm thump strictly to the loaded title menu and in-game pause menu.
+    static bool allow_ui_confirm(bool ever_valid, double g_time, bool g_menu,
+                                 bool texts_ready, bool intro_done, bool title_armed) {
+        if (ever_valid) return g_menu;
+        if (g_time > 0.0) return false;
+        return texts_ready && intro_done && title_armed;
+    }
     // test harness introspection
     std::string status();
     DualSense& pad() { return pad_; }
@@ -86,6 +93,7 @@ private:
     // a whistle waits ~1 s for the speech recognizer: if a spoken command ("chao") lands around it, it was a word
     std::atomic<double> whistle_at_{-1}, last_command_t_{-10};
     bool triggers_on_ = true, haptics_on_ = true;
+    float trigger_strength_ = 1.0f;
     uint32_t prev_buttons_ = 0;
     std::mutex status_mu_;
     std::string last_state_;
@@ -97,6 +105,10 @@ private:
     float game_rumble_gain_ = 0.15f;
     bool frozen_warned_ = false;
     bool frozen_rumble_fallback_ = false;
+    bool ever_valid_ = false;
+    double last_ui_confirm_t_ = -10.0;
+    double init_t_ = 0.0;
+    bool title_cross_armed_ = true;
     std::atomic<bool> restarting_{false};
 };
 

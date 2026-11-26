@@ -85,6 +85,7 @@ WeaponEngine::WeaponEngine(const json& prof, const Calibration& cal, const Setti
     bank_ = jstr(p_, "bank");
     const json f = p_.value("fire", json::object());
     mode_ = jstr(f, "engine", "feedback");
+    double_action_ = f.value("double_action", false);
     curve_ = zones_from(f, "curve");
     auto wf = jints(f, "weapon_effect");
     if (wf.size() == 3) weapon_fx_ = {wf[0], wf[1], wf[2]};
@@ -133,7 +134,7 @@ WeaponEngine::WeaponEngine(const json& prof, const Calibration& cal, const Setti
     action_min_s_ = jnum(action_, "min_ms", 120) / 1000.0f;
     action_fan_ = action_.value("fan", false);
     action_curve_ = zones_from(action_, "curve");
-    action_break_raw_ = cal_.raw_at(int(jnum(action_, "break_zone", 7))) + s.fire_margin;
+    action_break_raw_ = clampv(cal_.raw_at(int(jnum(action_, "break_zone", 7))) + s.fire_margin, 30, 245);
     if (action_.contains("ticks"))
         for (auto& t : action_["ticks"]) action_ticks_[t.value("zone", 0)] = t;
     clip_size_ = p_.contains("clip") && p_["clip"].is_number() ? p_["clip"].get<int>() : 0;
@@ -178,6 +179,18 @@ void WeaponEngine::schedule(double at, const std::string& name, float gain, int 
 
 WeaponEngine::Zones WeaponEngine::action_feel() const {
     float d = dirt();
+    const bool uniform_spring = action_type_ == "hammer" || action_type_ == "lever" || action_type_ == "pump";
+    if (uniform_spring || action_type_ == "bolt") {
+        Zones z{};
+        for (int i = 0; i < 10; ++i) {
+            int v = action_curve_[i];
+            if (!v) continue;
+            // Bolt preserves its two-phase unlock/lock contrast even when dirty.
+            float extra = (action_type_ == "bolt" && v < 4) ? d * 2.0f : d * 2.5f;
+            z[i] = clampv(int(std::lround(float(v) + extra)), 1, 8);
+        }
+        return z;
+    }
     int wall = -1;
     for (int i = 0; i < 10; ++i) if (action_curve_[i] > 0) wall = i;
     Zones z{};
@@ -215,8 +228,12 @@ fx::Block WeaponEngine::fire_block(int raw, double now) {
         for (int i = weapon_fx_[0]; i < 10; ++i) z[i] = 0;
     if (dead_eye_)
         for (auto& v : z) if (v) v = std::min(8, v + 1);           // time thickens
-    if (float d = dirt(); d >= 0.15f) {                            // a dirty gun drags through the take-up
-        for (int i = 0; i < break_zone_ && i < 10; ++i) if (z[i]) z[i] = std::min(8, z[i] + int(std::lround(d * 1.5f)));
+    const float d = dirt();
+    const float dirt_thresh = double_action_ ? 0.10f : 0.15f;
+    if (d >= dirt_thresh) {                                        // dirty gun drags through take-up / DA mainspring
+        const float mult = double_action_ ? 2.5f : 1.5f;
+        for (int i = 0; i < break_zone_ && i < 10; ++i)
+            if (z[i]) z[i] = std::min(8, z[i] + int(std::lround(d * mult)));
     }
     return fx::multi_feedback(texture(z, raw, now));
 }
@@ -258,7 +275,7 @@ void WeaponEngine::crossed(const std::map<int, json>& ticks, int raw, EngineFram
         auto it = ticks.find(z);
         if (it == ticks.end()) continue;
         play(f, jstr(it->second, "haptic"), jnum(it->second, "gain", 1));
-        if (it->second.value("bump", true)) bumps_[z] = now + 0.015;
+        if (it->second.value("bump", true)) bumps_[z] = now + 0.040;
     }
 }
 
@@ -304,7 +321,7 @@ EngineFrame WeaponEngine::update(const InputState& in, const GameHints& g) {
     fx::Block blk;
     if (kind_ == "bow") blk = update_bow(raw, now, f);
     else if (kind_ == "auto") blk = update_auto(raw, now, f);
-    else if (kind_ == "melee") blk = update_melee(pressed, now, f, g);
+    else if (kind_ == "melee") blk = update_melee(raw, pressed, now, f, g);
     else if (kind_ == "tension") blk = update_tension(raw, pressed, now, f, g);
     else if (kind_ == "tool") blk = fx::off();
     else blk = update_gun(raw, now, f, g);
@@ -349,6 +366,8 @@ fx::Block WeaponEngine::update_gun(int raw, double now, EngineFrame& f, const Ga
     if (g.valid) {
         if (g.reloading && state_ != "reloading") {
             state_ = "reloading";
+            hammer_slipped_ = false;
+            hammer_slip_wait_reset_ = false;
             game_rt_ = 0;
             reload_clip_ = clip_;
             reload_start_clip_ = clip_;
@@ -415,9 +434,37 @@ fx::Block WeaponEngine::update_gun(int raw, double now, EngineFrame& f, const Ga
     const bool manual = action_type_ != "none" && action_type_ != "semi" && set_.manual_action;
     const bool free_fire = g.valid && (!manual || g.hip_fire || g.dual_wield);
     const int reset = free_fire ? std::max(reset_raw_, break_raw_ - 50) : reset_raw_;
-    if (free_fire && (state_ == "action" || state_ == "cycling")) state_ = "held";
+    if (free_fire && (state_ == "action" || state_ == "cycling")) {
+        state_ = "held";
+        hammer_slipped_ = false;
+        hammer_slip_wait_reset_ = false;
+    }
     const std::string st = state_;
     if (st == "ready") {
+        if (kind_ == "throw" && !pre_cue_.empty()) {
+            const bool fuse_now = l2_ >= kAimRaw || (g.valid && !g.hip_fire) || raw >= cal_.raw_at(2);
+            if (fuse_now) {
+                if (!fuse_lit_) {
+                    fuse_lit_ = true;
+                    fuse_t_ = now;
+                    next_fuse_crackle_ = now + 0.08;
+                }
+                const float u = clampv(float((now - fuse_t_) / 4.0), 0.0f, 1.0f);
+                f.fuse = 0.25f + 0.75f * u;
+                if (now >= next_fuse_crackle_) {
+                    Cue fc = cue("fuse_crackle", 0.35f + 0.55f * u);
+                    fc.has_pan = true;
+                    fc.pan = 0.55f;
+                    fc.speaker = false;
+                    f.cues.push_back(fc);
+                    next_fuse_crackle_ = now + (0.14 - 0.08 * u) * rng_.range(0.75f, 1.25f);
+                }
+            } else {
+                fuse_lit_ = false;
+            }
+        } else {
+            fuse_lit_ = false;
+        }
         crossed(ticks_, raw, f, now);
         if (!pre_cue_.empty() && cal_.zone_of(prev_raw_) < 2 && cal_.zone_of(raw) >= 2) play(f, pre_cue_);
         // quick follow-up shots don't need the whole pull again; the game must have seen R2 released (2 frames)
@@ -447,8 +494,10 @@ fx::Block WeaponEngine::update_gun(int raw, double now, EngineFrame& f, const Ga
             if (not_ready_since_ < 0) not_ready_since_ = now;
             if (manual && clip_ != 0 && now - shot_t_ > 0.08) {
                 state_ = "action";
+                hammer_slipped_ = false;
+                hammer_slip_wait_reset_ = false;
                 not_ready_since_ = -1;
-                return fx::multi_feedback(action_feel());
+                return fx::multi_feedback(texture(action_feel(), raw, now));
             }
             if (now - not_ready_since_ > 2.5) {          // never became ready: don't trust the signal for this gun
                 ready_usable_ = false;
@@ -467,7 +516,9 @@ fx::Block WeaponEngine::update_gun(int raw, double now, EngineFrame& f, const Ga
             }
             if (!free_fire && !game_rate && manual && clip_ != 0) {
                 state_ = "action";
-                return fx::multi_feedback(action_feel());
+                hammer_slipped_ = false;
+                hammer_slip_wait_reset_ = false;
+                return fx::multi_feedback(texture(action_feel(), raw, now));
             }
             state_ = "ready";
             if (reset_click_ && !last_dry_) play(f, "reset_click");
@@ -477,18 +528,60 @@ fx::Block WeaponEngine::update_gun(int raw, double now, EngineFrame& f, const Ga
         return stop_block(&after);
     }
     if (st == "action") {                         // manual cocking / cycling press
+        if (hammer_slip_wait_reset_) {
+            if (raw <= reset_raw_) hammer_slip_wait_reset_ = false;
+            if (now < hammer_slip_until_) return hammer_slip_fx_;
+            if (hammer_slip_wait_reset_) return fx::off();
+        }
         if (g.valid && ready_usable_ && g.ready && raw <= reset_raw_) {   // the game cocked it itself
             state_ = "ready";
+            hammer_slipped_ = false;
+            hammer_slip_wait_reset_ = false;
             return fire_block(raw, now);
         }
         crossed(action_ticks_, raw, f, now);
         if (raw >= action_break_raw_) {
             bool fan = action_fan_ && set_.fanning && l2_ < kAimRaw && now - shot_t_ < 0.9 * slow();
             if (fan) {                     // palm slaps the hammer: cock and fire in one stroke
+                hammer_slipped_ = false;
+                hammer_slip_wait_reset_ = false;
                 play(f, "hammer_cock_auto", 0.7f);
                 shoot(raw, now, f, true);
                 return stop_block();
             }
+            if (set_.hammer_slip && !hammer_slipped_ && dirt() >= 0.45f) {
+                static constexpr struct {
+                    const char* type;
+                    const char* cue;
+                    float gain;
+                    int amp;
+                    int freq;
+                    double dur;
+                    float max_p;
+                } kSlipSpecs[] = {
+                    {"hammer", "dry_fire",   0.55f, 6, 36, 0.14, 0.32f},
+                    {"lever",  "lever_open", 0.45f, 7, 30, 0.14, 0.26f},
+                    {"bolt",   "bolt_open",  0.50f, 7, 26, 0.15, 0.26f},
+                    {"pump",   "pump_back",  0.45f, 6, 28, 0.14, 0.26f},
+                };
+                for (const auto& sp : kSlipSpecs) {
+                    if (action_type_ != sp.type) continue;
+                    float slip_p = clampv((dirt() - 0.45f) / 0.55f, 0.0f, 1.0f) * sp.max_p;
+                    if (rng_.uniform() < slip_p) {
+                        hammer_slipped_ = true;
+                        hammer_slip_wait_reset_ = true;
+                        hammer_slip_until_ = now + sp.dur;
+                        hammer_slip_fx_ = fx::vibration(0, sp.amp, sp.freq);
+                        Cue sl = cue(sp.cue, sp.gain);
+                        sl.speaker = true;
+                        f.cues.push_back(sl);
+                        return hammer_slip_fx_;
+                    }
+                    break;
+                }
+            }
+            hammer_slipped_ = false;
+            hammer_slip_wait_reset_ = false;
             Cue c = cue(action_open_);
             c.speaker = true;
             if (!c.name.empty()) timers_.push_back({now, c});
@@ -497,7 +590,7 @@ fx::Block WeaponEngine::update_gun(int raw, double now, EngineFrame& f, const Ga
             game_rt_ = 255;
             return fx::off();
         }
-        return fx::multi_feedback(action_feel());
+        return fx::multi_feedback(texture(action_feel(), raw, now));
     }
     if (st == "cycling") {
         if (g.valid && ready_usable_ && !g.ready && now - action_t_ > 2.5) {
@@ -517,11 +610,13 @@ fx::Block WeaponEngine::update_gun(int raw, double now, EngineFrame& f, const Ga
         return fx::off();
     }
     if (st == "reloading") return g.valid ? fx::off() : update_reload(now, f);
+    fuse_lit_ = false;
     return fx::off();
 }
 
 void WeaponEngine::shoot(int raw, double now, EngineFrame& f, bool fanned) {
     bool empty = clip_size_ && clip_ == 0;
+    fuse_lit_ = false;
     state_ = "held";
     shot_t_ = now;
     game_rt_ = 255;
@@ -659,7 +754,9 @@ fx::Block WeaponEngine::update_bow(int raw, double now, EngineFrame& f) {
             bow_creak_stage_ = 0;
             bow_strain_t_ = now;
             game_rt_ = 255;
-            play(f, jstr(bow_, "creak", "bow_creak"), 0.85f);
+            Cue c = cue(jstr(bow_, "creak", "bow_creak"), 0.85f);
+            c.speaker = true;
+            f.cues.push_back(c);
         } else {
             float rest_front = clampv(std::max(3.0f, jnum(bow_, "rest_strength", 3)), 1.0f, 6.0f);
             return fx::multi_feedback(ramp(rest_front, hi));
@@ -687,11 +784,15 @@ fx::Block WeaponEngine::update_bow(int raw, double now, EngineFrame& f) {
         if (bow_creak_stage_ == 0 && p >= 0.50f) {
             bow_creak_stage_ = 1;
             bow_strain_t_ = now;
-            play(f, jstr(bow_, "creak", "bow_creak"), 1.0f);
+            Cue c = cue(jstr(bow_, "creak", "bow_creak"), 1.0f);
+            c.speaker = false;
+            f.cues.push_back(c);
         } else if (bow_creak_stage_ == 1 && p >= 0.95f) {
             bow_creak_stage_ = 2;
             bow_strain_t_ = now;
-            play(f, jstr(bow_, "creak", "bow_creak"), 1.3f);
+            Cue c = cue(jstr(bow_, "creak", "bow_creak"), 1.3f);
+            c.speaker = false;
+            f.cues.push_back(c);
         }
         float eased = 1.0f - (1.0f - p) * (1.0f - p);
         float front = lo + (hi - lo) * eased;
@@ -705,13 +806,12 @@ fx::Block WeaponEngine::update_bow(int raw, double now, EngineFrame& f) {
             float dip = depth * wave + rng_.range(-0.25f, 0.25f) * depth;
             front = std::max(lo, front + dip);
             back = std::max(std::min(6.0f, hi), back + dip);
-            if (now - bow_strain_t_ >= 0.24) {
+            if (now - bow_strain_t_ >= 0.35) {
                 bow_strain_t_ = now;
-                play(f, jstr(bow_, "creak", "bow_creak"), clampv(0.55f + 0.45f * tremor, 0.55f, 1.1f));
+                Cue c = cue(jstr(bow_, "creak", "bow_creak"), clampv(0.55f + 0.45f * tremor, 0.55f, 1.1f));
+                c.speaker = false;
+                f.cues.push_back(c);
             }
-        } else if (p >= 0.95f && now - bow_strain_t_ >= 0.45) {
-            bow_strain_t_ = now;
-            play(f, jstr(bow_, "creak", "bow_creak"), 0.45f);
         }
         // Keep solid FEEDBACK (0x21) through full draw rather than dropping into VIBRATION (0x26),
         // which oscillates on/off and halves steady holding resistance.
@@ -727,7 +827,7 @@ fx::Block WeaponEngine::update_bow(int raw, double now, EngineFrame& f) {
 }
 
 // ---------------- melee ----------------
-fx::Block WeaponEngine::update_melee(uint32_t pressed, double now, EngineFrame& f, const GameHints& g) {
+fx::Block WeaponEngine::update_melee(int raw, uint32_t pressed, double now, EngineFrame& f, const GameHints& g) {
     float sl = slow();
     auto impacts = [&]() {
         std::vector<std::string> v;
@@ -750,15 +850,6 @@ fx::Block WeaponEngine::update_melee(uint32_t pressed, double now, EngineFrame& 
             name = jstr(melee_, "miss", "melee_miss");
         }
         schedule(at, name, gain, -1, true, pan);
-        if (result == "hit") {
-            melee_kick_until_ = at + (knockout || finisher ? 0.22 : 0.12);
-            melee_kick_amp_ = (knockout || finisher) ? 8 : 5;
-            melee_kick_both_ = knockout || finisher;
-        } else if (result == "blocked") {
-            melee_kick_until_ = at + 0.09;
-            melee_kick_amp_ = 4;
-            melee_kick_both_ = false;
-        }
         if (finisher) combo_ = 0;
         last_strike_ = knockout ? "knockout" : finisher ? "finisher" : result;
         LOGD("strike: %s", last_strike_.c_str());
@@ -801,9 +892,6 @@ fx::Block WeaponEngine::update_melee(uint32_t pressed, double now, EngineFrame& 
         sw.has_pan = true;
         sw.pan = pan;
         f.cues.push_back(sw);
-        melee_kick_until_ = now + 0.10;
-        melee_kick_amp_ = 3;
-        melee_kick_both_ = false;
         double impact_at = now + jnum(melee_, "impact_ms", 140) / 1000 * sl;
         if (g.valid) {
             strikes_.push_back({impact_at + 0.3 * sl, pan, g.melee_hits, g.melee_ko, false});
@@ -812,13 +900,27 @@ fx::Block WeaponEngine::update_melee(uint32_t pressed, double now, EngineFrame& 
             land(result, pan, result == "miss" ? impact_at + 0.04 * sl : impact_at, false);
         }
     }
-    if (now < melee_kick_until_) {
-        fx::Block b = fx::vibration(0, melee_kick_amp_, melee_kick_both_ ? 24 : 32);
-        if (melee_kick_both_) f.l2 = b;
-        return b;
+    // Quick-draw / duel slow half-press on R2 while sidearm is holstered and fists aren't swinging
+    if (id_ == "WEAPON_UNARMED" && g.can_quickdraw && l2_ < kAimRaw && raw >= 12 && (now - shot_t_ > 0.6)) {
+        static constexpr Zones kQuickDraw = {0, 1, 2, 3, 4, 5, 7, 8, 0, 0};
+        if (quickdraw_t_ < 0.0) {
+            quickdraw_t_ = now;
+            next_qd_pulse_ = now + 0.25;
+            qd_snapped_ = false;
+        }
+        if (raw >= 25 && raw < cal_.raw_at(8) && now >= next_qd_pulse_) {
+            float charge = clampv(float((now - quickdraw_t_) / 2.2), 0.0f, 1.0f);
+            play(f, "quickdraw_tension", 0.35f + 0.45f * charge);
+            next_qd_pulse_ = now + (0.36 - 0.14 * charge);
+        }
+        if (!qd_snapped_ && raw >= cal_.raw_at(8) && prev_raw_ < cal_.raw_at(8)) {
+            qd_snapped_ = true;
+            play(f, "reset_click", 0.65f);
+        }
+        return fx::multi_feedback(kQuickDraw);
     }
-    // light tactile ready resistance for blades/heavy melee weapons
-    if (id_ != "WEAPON_UNARMED" && id_.find("FIST") == std::string::npos) return fx::feedback(5, 2);
+    quickdraw_t_ = -1.0;
+    qd_snapped_ = false;
     return fx::off();
 }
 
@@ -917,7 +1019,8 @@ fx::Block WeaponEngine::update_tension(int raw, uint32_t pressed, double now, En
         float lo = v.size() == 2 ? float(v[0]) : 600, hi = v.size() == 2 ? float(v[1]) : 1800;
         return rng_.range(lo, hi) / 1000;
     };
-    bool live = g.valid && id_.find("LASSO") != std::string::npos;
+    const bool is_lasso = id_.find("LASSO") != std::string::npos;
+    bool live = g.valid && is_lasso;
     if (live) {                                              // the game tells us when the rope is on something
         if (g.lasso_attached && state_ != "tethered") {
             state_ = "tethered";
@@ -925,20 +1028,56 @@ fx::Block WeaponEngine::update_tension(int raw, uint32_t pressed, double now, En
             lasso_prev_ = g.lasso_pull;
             play(f, jstr(tn, "catch"));
         } else if (!g.lasso_attached && state_ == "tethered") {
-            state_ = "ready";
+            state_ = "thrown";
+            shot_t_ = now - 0.80;
+            lasso_saw_unready_ = false;
             lasso_prev_ = 0;
         }
     }
     if (state_ == "ready") {
-        if (raw >= break_raw_ && prev_raw_ < break_raw_ && (!live || now - shot_t_ > 0.25)) {
+        if (is_lasso) {
+            const bool can_wind = !live || ((l2_ >= kAimRaw || !g.hip_fire) && g.ready);
+            if (raw >= break_raw_ && can_wind) {
+                state_ = "spinning";
+                lasso_spin_t_ = now;
+                play(f, "lasso_spin", 0.85f);
+                return fx::feedback(2, 2);
+            }
+        } else if (raw >= break_raw_ && prev_raw_ < break_raw_) {
             shot_t_ = now;
             play(f, shot_haptic_);
-            if (!live) {
-                state_ = "flying";
-            }
+            state_ = "flying";
             return fx::off();
         }
         return fire_block(raw, now);
+    }
+    if (state_ == "spinning") {
+        if (live && l2_ < kAimRaw && g.hip_fire) {
+            state_ = "ready";
+            return fx::off();
+        }
+        if (raw <= reset_raw_) {
+            shot_t_ = now;
+            lasso_saw_unready_ = live && !g.ready;
+            play(f, shot_haptic_);
+            state_ = live ? "thrown" : "flying";
+            return fx::off();
+        }
+        const double spin_period = 0.65 / speed();
+        if (now - lasso_spin_t_ >= spin_period) {
+            lasso_spin_t_ = now;
+            play(f, "lasso_spin", 0.85f);
+        }
+        return fx::feedback(2, 2);
+    }
+    if (state_ == "thrown") {
+        if (live && !g.ready) lasso_saw_unready_ = true;
+        const bool recovered = lasso_saw_unready_ ? (g.ready && now - shot_t_ >= 0.45) : (now - shot_t_ >= 1.65);
+        if (raw <= reset_raw_ && (!live || recovered)) {
+            state_ = "ready";
+            lasso_saw_unready_ = false;
+        }
+        return fx::off();
     }
     if (state_ == "flying") {
         if (now - shot_t_ >= jnum(tn, "catch_ms", 500) / 1000 / speed()) {

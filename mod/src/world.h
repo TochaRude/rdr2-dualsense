@@ -27,15 +27,20 @@ struct GameSnapshot {
     bool reloading = false, shooting = false, aiming = false;
     bool free_aim = false, lock_on = false;   // aiming freely / the game's aim assist holds a target
     bool dead_eye = false;
+    bool eagle_eye = false;
     int health_core = 100, stamina_core = 100;   // health_core: real health in % (100 when fortified)
-    float grit = 0, kick_mult = 1, tremor = 0;
+    float grit = 0, weapon_dirt = 0, kick_mult = 1, tremor = 0;
+    bool can_quickdraw = false;
     bool on_mount = false;
-    float mount_speed = 0, mount_pitch = 0;
+    float mount_speed = 0, mount_pitch = 0, mount_agitation = 0;
     int mount_stamina = 100;
     std::string horse_surface = "ground";
     bool hoof_bones = false;       // the horse's leg bones were found
     float hoof_rate = 0;           // real hoof contacts per second over the last 1.5 s
     bool in_train = false, in_vehicle = false, in_boat = false;
+    bool vehicle_braking = false;
+    float vehicle_decel = 0;
+    std::string vehicle_surface = "ground";
     float speed = 0;
     bool swimming = false;
     float wade = 0, horse_wade = 0;          // how deep in water (0..1 of the body: Arthur / the horse)
@@ -165,9 +170,14 @@ private:
         float top = 0, low = 0, size = 0.4f;    // size: the recent stroke length (m)
     };
     void strokes(int ped, Stroke* limbs, int n, bool horse, float speed, std::vector<WorldEvent>& ev);
-    Stroke swim_[4], paddle_[4];                // Arthur: hands, feet; the horse: its legs
-    int swim_ped_ = 0, paddle_horse_ = 0;
-    bool swim_logged_ = false, horse_swim_logged_ = false, swim_was_ = false, horse_swim_was_ = false;
+    Stroke swim_[4], paddle_[4], oar_[2];        // Arthur: hands, feet; horse: legs; boat: left/right oar hands
+    int swim_ped_ = 0, paddle_horse_ = 0, oar_ped_ = 0;
+    bool swim_logged_ = false, horse_swim_logged_ = false, swim_was_ = false, horse_swim_was_ = false, oar_was_ = false;
+    double oar_last_t_[2] = {-10, -10};
+    float boat_heading_prev_ = 0;
+    bool boat_heading_ok_ = false;
+    float wagon_speed_prev_ = 0;
+    bool wagon_speed_ok_ = false;
     float fall_max_ = 0;                        // fastest fall in the last 0.5 s (a jump into water)
     double fall_max_t_ = 0;
     void record_limbs(const char* mode, int n, const float* x, const float* y, const float* z, const float* gz,

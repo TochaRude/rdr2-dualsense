@@ -3,12 +3,20 @@
 #include "config.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 
 namespace dsr2 {
 
 namespace {
+
+bool eq_ci(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i)
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) return false;
+    return true;
+}
 
 MenuEntry header(const char* label_key, const char* label) {
     MenuEntry e;
@@ -79,7 +87,7 @@ std::string SettingsMenu::value_text(const MenuEntry& e, const Config& c) {
     case MenuEntry::Choice: {
         std::string v = c.str(e.section, e.key, e.choices.empty() ? "" : e.choices[size_t(e.def)].value);
         for (auto& o : e.choices)
-            if (o.value == v) return o.text;
+            if (eq_ci(o.value, v) || (v.empty() && eq_ci(o.value, "OFF"))) return o.text;
         return v;
     }
     }
@@ -142,7 +150,7 @@ int SettingsMenu::page_value(const MenuEntry& e, const Config& c) {
         if (e.choices.empty()) return 0;
         std::string v = c.str(e.section, e.key, e.choices[size_t(e.def)].value);
         for (size_t k = 0; k < e.choices.size(); ++k)
-            if (e.choices[k].value == v) return int(k);
+            if (eq_ci(e.choices[k].value, v) || (v.empty() && eq_ci(e.choices[k].value, "OFF"))) return int(k);
         return int(e.def);
     }
     }

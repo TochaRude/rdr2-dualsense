@@ -7,6 +7,7 @@
 #include "gamemem.h"
 #include "input.h"
 #include "log.h"
+#include "text_inject.h"
 #include "world.h"
 
 namespace dsr2 {
@@ -23,6 +24,7 @@ void Core::load_data() {
     reload_key_ = c.integer("General", "ReloadKey", 120);
     wheel_click_gain_ = c.num("Haptics", "WheelClick", 0.6f);
     triggers_on_ = c.flag("Triggers", "Enabled", true);
+    trigger_strength_ = clampv(c.num("Triggers", "Strength", 1.0f), 0.0f, 2.0f);
     haptics_on_ = c.flag("Haptics", "Enabled", true);
     record_cues_ = log::debug_enabled() && c.flag("General", "Record", false);
     const bool spk_on = c.flag("Speaker", "Mechanics", false) && haptics_on_;
@@ -33,6 +35,7 @@ void Core::load_data() {
     LOGI("speaker: %s (volume %.2f)", spk_on ? "on" : "off", spk_vol);
     settings_ = Settings{};
     settings_.manual_action = c.flag("Triggers", "ManualCocking", true);
+    settings_.hammer_slip = c.flag("Triggers", "HammerSlip", true) && c.flag("Triggers", "ConditionGrit", true);
     settings_.fanning = c.flag("Triggers", "Fanning", true);
     settings_.auto_align = c.flag("Triggers", "AutoAlign", true);
     settings_.fire_margin = c.integer("Triggers", "FireMargin", 4);
@@ -83,6 +86,8 @@ bool Core::init(bool in_game, const std::string& test_weapon) {
     audio_.set_bluetooth_output([this](const uint8_t* pcm) { return pad_.send_haptics(pcm); },
                                 [this] { return pad_.connected() && !pad_.usb(); });
     audio_.start(&lib_);
+    init_t_ = now_s();
+    title_cross_armed_ = true;
     if (in_game) dialogue().start(module_dir(), &audio_);      // cutscene / dialogue haptics (idle while both are off)
     audio_.start_game_audio(c.num("Haptics", "GameAudio", 0.0f), c.str("Haptics", "GameAudioDevice", ""));
     apply_mic();
@@ -227,6 +232,8 @@ bool Core::on_input(const InputState& s, OutputState& out) {
     const bool frozen = in_game_ && g.time > 0.0 && s.t - g.time > 0.25;
     const double frozen_for = frozen ? (s.t - g.time) : 0.0;
     const bool in_menu = in_game_ && (!g.valid || g.menu || frozen);
+    if (g.valid) ever_valid_ = true;
+    const float rl = input().rumble_low(), rh = input().rumble_high();
     if (frozen) {
         g.halted = true;
         g.blocked = true;
@@ -295,6 +302,7 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         h.melee_hits = g.melee_hits;
         h.melee_ko = g.melee_ko;
         h.melee_target_near = g.melee_target_near;
+        h.can_quickdraw = g.can_quickdraw;
         h.hip_fire = !g.aiming;
         h.dual_wield = g.dual_wield;
         h.ready = g.ready;
@@ -330,6 +338,22 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         out.r2 = fx::off();
         out.l2 = fx::off();
         cues.clear();
+        const bool texts_ready = text_inject_ready();
+        const bool nav_pressed = (pressed & (DPAD_UP | DPAD_DOWN | DPAD_LEFT | DPAD_RIGHT | L1 | R1 | CIRCLE)) != 0;
+        const bool intro_done = (s.t - init_t_ >= 12.0) || (texts_ready && nav_pressed);
+        if (!ever_valid_ && g.time == 0.0 && texts_ready && intro_done && nav_pressed)
+            title_cross_armed_ = true;
+        // Confirm thump when pressing Cross on the loaded Main Menu (e.g. Story) or in-game Pause Menu
+        if (allow_ui_confirm(ever_valid_, g.time, g.menu, texts_ready, intro_done, title_cross_armed_) &&
+            (pressed & CROSS) && s.t - last_ui_confirm_t_ >= 0.18 && wheel_click_gain_.load() > 0) {
+            last_ui_confirm_t_ = s.t;
+            if (!ever_valid_) title_cross_armed_ = false;
+            Cue c;
+            c.name = "ui_confirm";
+            c.gain = std::max(0.55f, wheel_click_gain_.load());
+            c.scripted = false;
+            cues.push_back(c);
+        }
     }
     // in the wheel L2/R2 browse weapons: each press is a light selector click (a detent that gives way),
     // with a small tick - a switch, not a shot. After closing it R2 stays loose until let go.
@@ -343,6 +367,11 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         tick.has_pan = true;
         if (tick.gain > 0 && s.r2 >= click_r && wheel_r2_ < click_r) { tick.pan = 0.6f; cues.push_back(tick); }
         if (tick.gain > 0 && s.l2 >= click_l && wheel_l2_ < click_l) { tick.pan = -0.6f; cues.push_back(tick); }
+        // switching wheel tabs (Weapons / Items / Horse) with R1
+        if (tick.gain > 0 && g.wheel && (pressed & R1)) {
+            tick.pan = 0.35f; cues.push_back(tick);
+            LOGD("wheel: R1 tab switch");
+        }
         // moving the highlight to another weapon / item (the game reports which one is highlighted)
         if (tick.gain > 0 && g.wheel && wheel_open_ && g.wheel_item != wheel_item_) {   // also onto / off empty slots
             tick.pan = 0; cues.push_back(tick);
@@ -353,6 +382,10 @@ bool Core::on_input(const InputState& s, OutputState& out) {
     wheel_open_ = in_game_ && g.wheel && !in_menu;
     wheel_r2_ = s.r2;
     wheel_l2_ = s.l2;
+    if (!in_menu && triggers_on_) {
+        out.r2 = fx::scale(out.r2, trigger_strength_);
+        out.l2 = fx::scale(out.l2, trigger_strength_);
+    }
     if (!g.valid && !in_game_ && engine_) {        // standalone: engine state on the lightbar
         static const std::map<std::string, std::array<uint8_t, 3>> colors = {
             {"ready", {0, 40, 0}}, {"held", {40, 25, 0}}, {"action", {0, 0, 70}}, {"cycling", {0, 30, 80}},
@@ -376,7 +409,7 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         }
         switch (HapticLibrary::speaker_category(c.name)) {
         case SpeakerCategory::Mech:
-            if (c.name != "gun_draw" && c.name != "gun_holster") c.speaker = true;
+            if (c.name != "gun_draw" && c.name != "gun_holster" && c.name != "bow_creak") c.speaker = true;
             break;
         case SpeakerCategory::Ambient: c.speaker = speaker_ambient_.load(); break;
         case SpeakerCategory::UI: c.speaker = speaker_ui_.load(); break;
@@ -393,7 +426,8 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         for (Cue& c : cues) {
             const std::string& n = c.name;
             if (n.rfind("step_", 0) == 0 || n.rfind("hoof_", 0) == 0 || n == "wade_push" || n == "brush" || n == "brush_in" || n == "splash" ||
-                n == "rain_drop" || n == "wagon_rut" || n == "rail_clack" || n == "swim_pull" || n == "swim_kick" || n == "horse_paddle")
+                n == "rain_drop" || n == "wagon_rut" || n == "wagon_brake" || n == "rail_clack" || n == "swim_pull" || n == "swim_kick" ||
+                n == "horse_paddle" || n == "oar_pull" || n == "boat_wave")
                 c.gain *= 0.5f;
         }
     if (record_cues_ && haptics_on_)            // research (Record=1): every effect as it plays
@@ -449,7 +483,6 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         const bool can_gyro = !in_game_ || (g.valid && !g.blocked && !paused && !in_menu);
         input().track_gyro(s, real_weapon_aim, can_gyro);
     }
-    const float rl = input().rumble_low(), rh = input().rumble_high();
     if (frozen) {
         if (frozen_for >= 15.0 && !frozen_warned_) {
             frozen_warned_ = true;

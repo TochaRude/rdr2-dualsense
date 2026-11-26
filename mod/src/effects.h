@@ -3,6 +3,7 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 namespace dsr2::fx {
@@ -117,6 +118,36 @@ inline std::array<int, kZones> zones_of(const Block& b) {
     for (int i = 0; i < kZones; ++i)
         if (active & (1u << i)) z[i] = int((packed >> (3 * i)) & 7) + 1;
     return z;
+}
+
+// Global trigger resistance scaling across DualSense adaptive trigger effect blocks.
+inline Block scale(const Block& b, float s) {
+    if (s <= 0.001f) return off();
+    if (std::fabs(s - 1.0f) < 0.005f || b[0] == OFF || b[0] == GALLOPING) return b;
+    if (b[0] == FEEDBACK) {
+        auto z = zones_of(b);
+        for (int& v : z)
+            if (v > 0) v = clampi(int(std::lround(v * s)), 1, 8);
+        return multi_feedback(z);
+    }
+    if (b[0] == VIBRATION) {
+        auto z = zones_of(b);
+        for (int& v : z)
+            if (v > 0) v = clampi(int(std::lround(v * s)), 1, 8);
+        return multi_vibration(b[9], z);
+    }
+    if (b[0] == WEAPON) {
+        Block out = b;
+        int v = clampi(int(std::lround((int(b[3]) + 1) * s)), 1, 8);
+        out[3] = uint8_t(v - 1);
+        return out;
+    }
+    if (b[0] == 0x02) {
+        Block out = b;
+        out[3] = uint8_t(clampi(int(std::lround(b[3] * s)), 1, 255));
+        return out;
+    }
+    return b;
 }
 
 }  // namespace dsr2::fx

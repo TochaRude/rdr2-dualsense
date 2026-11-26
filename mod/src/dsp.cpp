@@ -36,6 +36,9 @@ const Preset& preset(const std::string& name) {
         {"small", {60, 300, 0.5f, 0.9f, 200, 0.2f, 80, 10, 40, 220, 1.6f}},
         {"mech", {60, 320, 0.35f, 1.0f, 210, 0.1f, 90, 30, 60, 400, 1.5f}},
         {"explosion", {20, 180, 1.0f, 0.45f, 120, 0.9f, 36, 120, 450, 1600, 2.6f}},
+        {"surface", {30, 260, 0.75f, 0.65f, 185, 0.35f, 52, 22, 65, 190, 1.8f}},
+        {"drop", {70, 300, 0.45f, 0.95f, 230, 0.08f, 90, 4, 18, 65, 1.5f}},
+        {"thunder", {18, 150, 0.95f, 0.25f, 105, 0.95f, 34, 240, 750, 2200, 2.2f}},
     };
     auto it = table.find(name);
     return it != table.end() ? it->second : table.at("mech");

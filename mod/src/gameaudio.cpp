@@ -30,6 +30,13 @@ static std::map<std::string, std::vector<std::string>> game_banks() {
     std::map<std::string, std::vector<std::string>> m;
     m["WEAPONS"] = {"audio:/sfx/RDR3.Resident/weapons.awc"};
     m["EXPLOSIONS"] = {"audio:/sfx/RESIDENT/explosions.awc"};
+    m["FEET_MATERIALS"] = {"audio:/sfx/RESIDENT/feet_materials.awc", "audio:/sfx/RDR3.Resident/feet_materials.awc"};
+    m["WATER"] = {"audio:/sfx/RESIDENT/water.awc", "audio:/sfx/RDR3.Resident/water.awc"};
+    m["MELEE"] = {"audio:/sfx/RESIDENT/melee.awc", "audio:/sfx/RDR3.Resident/melee.awc"};
+    m["WEATHER.THUNDER"] = {"audio:/sfx/THUNDER/weather.thunder.awc", "audio:/sfx/RESIDENT/weather.thunder.awc",
+                            "audio:/sfx/RDR3.Resident/weather.thunder.awc"};
+    m["FRONTEND"] = {"audio:/sfx/RESIDENT/frontend.awc", "audio:/sfx/RDR3.Resident/frontend.awc",
+                     "audio:/sfx/FRONTEND/frontend.awc"};
     for (const char* b : {"PTL_MAUSER_FINAL", "PTL_SEMIAUTO_FINAL", "PTL_VOLCANIC_FINAL", "REV_CATTLEMAN_FINAL", "REV_DOUBLE_FINAL",
                           "REV_SCHOFIELD_FINAL", "RFL_BOLTACTION_PLAYER", "RFL_SPRINGFIELD_FINAL", "RPT_CARBINE_FINAL",
                           "RPT_LANCASTER_FINAL", "RPT_LITCHFIELD_PLAYER", "RPT_PUMPACTION_FINAL", "SHT_DOUBLE_FINAL", "SHT_PUMP",
@@ -179,6 +186,8 @@ std::vector<GameSound> GameAudio::load(const std::string& bank) {
     std::vector<uint32_t> infos(count);
     for (uint32_t i = 0; i < count; ++i) infos[i] = u32(off + 4 * size_t(i));
     off += 4 * size_t(count);
+    const bool labeled_only = (bank == "FEET_MATERIALS" || bank == "WATER" || bank == "MELEE" ||
+                               bank == "WEATHER.THUNDER" || bank == "FRONTEND");
     std::vector<RawStream> streams;
     for (uint32_t info : infos) {
         size_t fmt_size = 0, fmt_off = 0, data_size = 0, data_off = 0;
@@ -198,7 +207,13 @@ std::vector<GameSound> GameAudio::load(const std::string& bank) {
         uint32_t samples = u32(fmt_off);
         int rate = u16(fmt_off + 8);
         if (rate <= 0 || data_size != size_t(samples) * 2 || data_off + data_size > d.size() || !samples) continue;  // PCM16 only
-        streams.push_back({info & 0x1FFFFFFF, rate, reinterpret_cast<const int16_t*>(d.data() + data_off), samples});
+        uint32_t id = info & 0x1FFFFFFF;
+        if (labeled_only) {
+            char k[48];
+            snprintf(k, sizeof k, "%s/0x%08X", bank.c_str(), id);
+            if (!labels_.count(k)) continue;
+        }
+        streams.push_back({id, rate, reinterpret_cast<const int16_t*>(d.data() + data_off), samples});
     }
     // de-duplicate identical recordings in several slots
     auto fnv = [](const int16_t* p, size_t n) {

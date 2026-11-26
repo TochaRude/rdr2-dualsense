@@ -52,9 +52,13 @@ DefaultsVersion=3
 ; pressing it again while shown changes it (ground, grass, mud, stone, gravel, wood, snow, sand, water).
 ; Saved in DualSenseRDR2\materials.json. 121 = F10
 TeachSurfaceKey=121
+; In-game DualSense Settings language: auto (matches game language, English fallback), en, de, fr, es, it, pt, pl, ru
+Language=auto
 
 [Triggers]
 Enabled=1
+; Global adaptive trigger strength (0 - 2)
+Strength=1.0
 ; RDR2 cycles single-action hammers, levers, bolts and pumps with an R2 tap between shots.
 ; Set 0 if you use the "Automatic Cocking" mod.
 ManualCocking=1
@@ -71,6 +75,8 @@ KickStrength=1.0
 AimResistance=1
 ; Clean guns work like clockwork, dirty / worn ones drag like mud (the game's real gun condition)
 ConditionGrit=1
+; Badly worn / dirty manual-action guns (hammers, levers, bolts, pumps) can occasionally slip/hitch before latching (0 = off, 1 = on)
+HammerSlip=1
 ; Express / explosive ammo kicks harder
 AmmoTypeRecoil=1
 ; Shaky trigger when exhausted, freezing or drunk
@@ -201,7 +207,7 @@ SpeedPhrase=
 SpurTaps=2
 
 [Touchpad]
-; Button sent to the game: A B X Y LB RB LT RT BACK START LS RS UP DOWN LEFT RIGHT, empty = nothing
+; Button sent to the game: A B X Y LB RB LT RT BACK START LS RS UP DOWN LEFT RIGHT, OFF or empty = nothing
 Click=BACK
 SwipeUp=
 SwipeDown=

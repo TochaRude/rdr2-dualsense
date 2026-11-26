@@ -89,6 +89,7 @@ void Features::splash(float wade, float& was, float speed, float gain, std::vect
 void Features::horse(const GameSnapshot& g, double now, std::vector<Cue>& cues, OutputState& out, bool weapon_active) {
     if (!g.on_mount) {
         rearing_ = false;
+        prev_agitation_ = 0.0f;
         return;
     }
     float v = g.mount_speed;
@@ -116,6 +117,19 @@ void Features::horse(const GameSnapshot& g, double now, std::vector<Cue>& cues, 
     bool rear = g.mount_pitch > 25.0f;
     if (rear && !rearing_) cues.push_back(make("horse_rear", horse_gain_ * 1.2f));
     rearing_ = rear;
+    // spooked / agitated horse (predators, gunfire, fear): nervous rein tug + faster heartbeat
+    if (horse_gain_ > 0 && g.mount_agitation >= 0.40f) {
+        float ag = clampv((g.mount_agitation - 0.35f) / 0.65f, 0.2f, 1.0f);
+        if ((g.mount_agitation - prev_agitation_ >= 0.18f) || now >= next_horse_spook_) {
+            cues.push_back(make("horse_spook", horse_gain_ * (0.65f + 0.65f * ag), rng_.range(-0.45f, 0.45f), true));
+            next_horse_spook_ = now + clampv(1.8f - 1.1f * ag, 0.55f, 1.8f) * rng_.range(0.85f, 1.2f);
+        }
+        if (g.mount_agitation >= 0.60f && now >= next_horse_heart_) {
+            next_horse_heart_ = now + clampv(0.70 - 0.28 * double(ag), 0.38, 0.70);
+            cues.push_back(make("horse_heartbeat", horse_gain_ * (0.45f + 0.45f * ag)));
+        }
+    }
+    prev_agitation_ = g.mount_agitation;
     // the triggers feel the gait while riding unarmed
     if (triggers_on_ && !weapon_active && riding_pulse_ > 0 && stride_hz > 0.8f && !g.aiming) {
         int hz = clampv(int(std::lround(stride_hz * float(beats) / 2)), 1, 8);
@@ -138,10 +152,27 @@ void Features::transport(const GameSnapshot& g, double now, std::vector<Cue>& cu
             // the rear bogie crosses the same joint ~10 m later
             delayed_.push_back({now + 10.0 / std::max(2.0f, g.speed), make("rail_clack", gain * 0.8f)});
         }
-    } else if (g.in_vehicle && !g.in_train && !g.in_boat && g.speed > 1.5f) {
-        if (now >= next_rut_) {
+    } else if (g.in_vehicle && !g.in_train && !g.in_boat) {
+        if (g.speed > 1.5f && now >= next_rut_) {
             next_rut_ = now + rng_.range(0.4f, 2.5f) / clampv(g.speed / 5.0f, 0.5f, 3.0f);
             cues.push_back(make("wagon_rut", train_gain_ * rng_.range(0.4f, 1.0f), rng_.range(-0.5f, 0.5f), true));
+        }
+        if (g.vehicle_braking && now >= next_wagon_brake_) {
+            next_wagon_brake_ = now + rng_.range(0.11f, 0.18f);
+            float surf_mult = (g.vehicle_surface == "gravel" || g.vehicle_surface == "stone") ? 1.15f
+                            : (g.vehicle_surface == "mud" || g.vehicle_surface == "snow") ? 0.90f : 1.0f;
+            Cue bc = make("wagon_brake", train_gain_ * (0.55f + 0.65f * g.vehicle_decel) * surf_mult,
+                          rng_.range(-0.35f, 0.35f), true);
+            if (g.vehicle_surface == "mud" || g.vehicle_surface == "snow") bc.speed = 0.85f;
+            else if (g.vehicle_surface == "gravel" || g.vehicle_surface == "stone") bc.speed = 1.12f;
+            cues.push_back(bc);
+        }
+    } else if (g.in_boat) {
+        if (now >= next_boat_wave_) {
+            float pace = clampv(0.6f + g.speed / 4.0f, 0.6f, 2.2f);
+            next_boat_wave_ = now + rng_.range(1.4f, 2.8f) / pace;
+            cues.push_back(make("boat_wave", train_gain_ * clampv(0.35f + g.speed / 10.0f, 0.35f, 0.85f) * rng_.range(0.8f, 1.1f),
+                                rng_.range(-0.35f, 0.35f), true));
         }
     } else if (!g.in_train && g.near_train_dist >= 0 && g.near_train_dist < 35.0f && g.near_train_speed > 1.5f) {
         // standing near moving rail-cars / tracks: directional ground rumble + rail-joint clacks
@@ -176,9 +207,18 @@ void Features::lightbar(const InputState& in, const GameSnapshot& g, const Engin
         float p = float(std::sin(kPi * (honor_until_ - now) / 1.4));
         if (honor_up_) { r = 255 * p; gr = 200 * p; b = 110 * p; }
         else { r = 120 * p; gr = 10 * p; b = 0; }
+    } else if (w && w->fuse > 0.01f) {                             // lit fuse: escalating warm orange -> urgent red flicker
+        float fl = 0.65f + 0.20f * std::sin(t * (18.0f + 22.0f * w->fuse)) +
+                   0.15f * std::sin(t * (43.0f + 17.0f * w->fuse) + 1.7f);
+        r = 255.0f * fl;
+        gr = (130.0f - 85.0f * w->fuse) * fl;
+        b = (25.0f - 20.0f * w->fuse) * fl;
     } else if (g.dead_eye) {
         float p = 0.7f + 0.3f * std::sin(t * 2.0f);
         r = 200 * p; gr = 120 * p; b = 30 * p;                      // sepia glow
+    } else if (g.eagle_eye) {
+        float p = 0.75f + 0.25f * std::sin(t * 2.4f);
+        r = 120 * p; gr = 200 * p; b = 255 * p;                     // icy blue-white glow
     } else if (g.lantern) {
         float fl = 0.75f + 0.15f * std::sin(t * 13.0f) + 0.1f * std::sin(t * 31.0f + 1.3f);
         r = 255 * fl; gr = 140 * fl; b = 40 * fl;                   // warm flicker
@@ -267,11 +307,15 @@ void Features::update(const InputState& in, const GameSnapshot& g, std::vector<W
         prev_health_core_ = -1;
         health_led_until_ = -10.0;
         weapon_seen_ = false;
+        eagle_eye_was_ = false;
         wade_was_ = 0;
         horse_wade_was_ = 0;
         foliage_was_ = false;
         horse_foliage_was_ = false;
         rearing_ = false;
+        prev_agitation_ = 0.0f;
+        cleaning_was_ = false;
+        clean_dirt_prev_ = 1.0f;
         delayed_.clear();
         lightbar(in, g, weapon, now, out);
         return;
@@ -305,6 +349,9 @@ void Features::update(const InputState& in, const GameSnapshot& g, std::vector<W
             if (e.cause == "paddle") {
                 if (horse_gain_ > 0)
                     cues.push_back(make("horse_paddle", horse_gain_ * 1.2f * e.strength * rng_.range(0.9f, 1.08f), e.pan, true));
+            } else if (e.cause == "oar") {
+                if (train_gain_ > 0)
+                    cues.push_back(make("oar_pull", train_gain_ * 1.15f * e.strength * rng_.range(0.9f, 1.08f), e.pan, true));
             } else if (e.cause == "dive") {
                 if (step_gain_ > 0) cues.push_back(make("water_entry", std::min(1.2f, step_gain_ * 3.0f) * e.strength, 0, false, true));
             } else if (step_gain_ > 0) {
@@ -405,11 +452,31 @@ void Features::update(const InputState& in, const GameSnapshot& g, std::vector<W
         }
     }
     // what Arthur is busy with, felt as a texture while it lasts
+    const bool is_cleaning = !g.blocked && g.activity == "clean_gun";
+    if (is_cleaning && !cleaning_was_) clean_dirt_prev_ = g.weapon_dirt;
+    cleaning_was_ = is_cleaning;
     if (!g.blocked && life_gain_ > 0 && !g.activity.empty() && now >= next_texture_) {
         float pan = g.activity_pan;
         std::string cue;
         double gap = 0.5;
-        if (g.activity == "clean_gun") { cue = "cloth_rub"; gap = rng_.range(0.4f, 0.6f); pan = (texture_n_ % 2) ? 0.4f : -0.1f; }
+        if (g.activity == "clean_gun") {
+            float d = clampv(g.weapon_dirt, 0.0f, 1.0f);
+            pan = (texture_n_ % 2) ? 0.4f : -0.1f;
+            if (d > 0.15f) {
+                gap = rng_.range(0.42f, 0.62f);
+                cues.push_back(make("cloth_rub_gritty", life_gain_ * (0.45f + 0.75f * d) * rng_.range(0.85f, 1.1f), pan, true));
+                cues.push_back(make("cloth_rub", life_gain_ * (1.0f - 0.55f * d) * rng_.range(0.8f, 1.0f), pan, true));
+            } else {
+                gap = rng_.range(0.38f, 0.52f);
+                cues.push_back(make("cloth_rub", life_gain_ * 0.65f * rng_.range(0.85f, 1.05f), pan, true));
+            }
+            if (clean_dirt_prev_ >= 0.12f && d < 0.08f) {
+                cues.push_back(make("reset_click", life_gain_ * 0.4f, 0.2f, true));
+                clean_dirt_prev_ = d;
+            } else if (d > clean_dirt_prev_) {
+                clean_dirt_prev_ = d;
+            }
+        }
         else if (g.activity == "skin") { cue = "skin_cut"; gap = rng_.range(0.55f, 0.9f); pan = 0.3f; }
         else if (g.activity == "scrub") { cue = "scrub"; gap = rng_.range(0.35f, 0.5f); }
         else if (g.activity == "craft") { cue = "craft_tap"; gap = rng_.range(0.8f, 1.5f); pan = 0.2f; }
@@ -429,30 +496,57 @@ void Features::update(const InputState& in, const GameSnapshot& g, std::vector<W
         else if (!g.in_vehicle && !g.swimming) splash(g.wade, wade_was_, g.speed, step_gain_ * 1.5f, cues);
     }
     if (!g.blocked) {                   // Arthur's own state: only while you play him
-        // Gun leather, from the weapon in hand changing (the game's holster flag may rise before or after it): the gun
-        // that left the hand is holstered, the new one drawn. The speaker only for guns the game carries in the hip
-        // holster (attach point 2 / 3: every revolver and pistol and the sawed-off), not for long arms or tools.
+        // Weapon draw / holster cues when the weapon in hand changes: sidearms (hip holster),
+        // longarms (back/shoulder), and melee blades each get their own authentic speaker recording.
         if (weapon_seen_ && g.weapon != weapon_before_ && action_gain_ > 0) {
             LOGD("weapon change: 0x%08X -> 0x%08X, holstering %d", weapon_before_, g.weapon, int(g.holstering));
+            auto make_carry = [&](int attach, uint32_t group, bool lantern, bool draw) {
+                static const uint32_t kRifle = joaat("GROUP_RIFLE"), kRepeater = joaat("GROUP_REPEATER"),
+                                      kShotgun = joaat("GROUP_SHOTGUN"), kSniper = joaat("GROUP_SNIPER"),
+                                      kMelee = joaat("GROUP_MELEE");
+                const char* prefix = "gun";
+                bool spk = false;
+                if (attach == 2 || attach == 3) {
+                    prefix = "gun";
+                    spk = true;
+                } else if (group == kRifle || group == kRepeater || group == kShotgun || group == kSniper) {
+                    prefix = "longarm";
+                    spk = false;
+                } else if (group == kMelee && !lantern) {
+                    prefix = "blade";
+                    spk = false;
+                }
+                Cue c = make(std::string(prefix) + (draw ? "_draw" : "_holster"), action_gain_ * 1.2f, 0.5f, true);
+                c.speaker = spk;
+                return c;
+            };
             if (armed_before_ && attach_before_ >= 0) {
-                Cue c = make("gun_holster", action_gain_ * 1.2f, 0.5f, true);
-                c.speaker = (attach_before_ == 2 || attach_before_ == 3);
-                cues.push_back(c);
+                cues.push_back(make_carry(attach_before_, group_before_, lantern_before_, false));
             }
             if (g.armed && g.attach_point >= 0) {
-                Cue c = make("gun_draw", action_gain_ * 1.2f, 0.5f, true);
-                c.speaker = (g.attach_point == 2 || g.attach_point == 3);
-                delayed_.push_back({now + (armed_before_ ? 0.25 : 0.0), c});    // after the old gun has gone
+                delayed_.push_back({now + (armed_before_ ? 0.25 : 0.0),
+                                    make_carry(g.attach_point, g.group, g.lantern, true)});
             }
         }
-        if (!weapon_seen_) dead_eye_was_ = g.dead_eye;
-        else if (g.dead_eye != dead_eye_was_) {
+        if (!weapon_seen_) {
             dead_eye_was_ = g.dead_eye;
-            if (g.dead_eye) cues.push_back(make("deadeye_in", 0.65f, 0, false, true));
-            else cues.push_back(make("deadeye_out", 0.50f, 0, false, false));
+            eagle_eye_was_ = g.eagle_eye;
+        } else {
+            if (g.dead_eye != dead_eye_was_) {
+                dead_eye_was_ = g.dead_eye;
+                if (g.dead_eye) cues.push_back(make("deadeye_in", 0.65f, 0, false, true));
+                else cues.push_back(make("deadeye_out", 0.50f, 0, false, false));
+            }
+            if (g.eagle_eye != eagle_eye_was_) {
+                eagle_eye_was_ = g.eagle_eye;
+                if (g.eagle_eye) cues.push_back(make("eagle_eye_in", 0.55f, 0, false, false));
+                else cues.push_back(make("eagle_eye_out", 0.40f, 0, false, false));
+            }
         }
         weapon_seen_ = true;
         armed_before_ = g.armed;
+        group_before_ = g.group;
+        lantern_before_ = g.lantern;
         attach_before_ = g.attach_point;
         weapon_before_ = g.weapon;
         if (heart_gain_ > 0 && !g.dead_eye && now >= next_heart_) {

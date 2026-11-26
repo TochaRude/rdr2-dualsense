@@ -48,7 +48,7 @@ set(LAB_DATA ${CMAKE_CURRENT_SOURCE_DIR}/../tools/trigger_lab/data)
 add_custom_target(test_data ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/DualSenseRDR2
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LAB_DATA}/haptics.json ${LAB_DATA}/weapons.json
-            ${LAB_DATA}/sound_labels.json ${LAB_DATA}/speech_voices.txt ${CMAKE_BINARY_DIR}/DualSenseRDR2/)
+            ${LAB_DATA}/sound_labels.json ${LAB_DATA}/speech_voices.txt ${LAB_DATA}/translations.json ${CMAKE_BINARY_DIR}/DualSenseRDR2/)
 add_dependencies(dsr2_test test_data)
 
 # Real Win32 reload test with a mock ScriptHookRDR2.dll verifying FreeLibrary/LoadLibrary hot-reload
@@ -72,7 +72,7 @@ add_custom_target(reload_test_stage ALL
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:DualSenseRDR2> ${CMAKE_BINARY_DIR}/test_reload/DualSenseRDR2.asi
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:DualSenseCore> ${CMAKE_BINARY_DIR}/test_reload/DualSenseRDR2/DualSenseCore.dll
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LAB_DATA}/haptics.json ${LAB_DATA}/weapons.json
-            ${LAB_DATA}/sound_labels.json ${LAB_DATA}/speech_voices.txt ${CMAKE_BINARY_DIR}/test_reload/DualSenseRDR2/
+            ${LAB_DATA}/sound_labels.json ${LAB_DATA}/speech_voices.txt ${LAB_DATA}/translations.json ${CMAKE_BINARY_DIR}/test_reload/DualSenseRDR2/
     DEPENDS DualSenseRDR2 DualSenseCore mock_shv dsr2_reload_test test_data)
 
 enable_testing()

@@ -312,6 +312,9 @@
     {"type": "tone", "hz": 60, "to_hz": 46, "decay_ms": 40, "amp": 0.5}
   ]},
 
+  "lasso_spin": {"_doc": "whirling the lasso overhead: a rhythmic soft rope whoosh", "gain": 0.7, "variants": 3, "layers": [
+    {"type": "noise", "lo": 70, "hi": 190, "attack_ms": 90, "decay_ms": 130, "amp": 0.32, "pan": 0.5}
+  ]},
   "lasso_throw": {"gain": 1.0, "layers": [
     {"type": "noise", "lo": 80, "hi": 220, "attack_ms": 80, "decay_ms": 60, "amp": 0.3, "pan": 0.6}
   ]},
@@ -426,54 +429,76 @@
     {"type": "tone", "hz": 22, "attack_ms": 120, "decay_ms": 200, "amp": 0.35},
     {"type": "noise", "lo": 18, "hi": 40, "attack_ms": 100, "decay_ms": 220, "amp": 0.25}
   ]},
-  "step_ground": {"_doc": "packed earth: a short heel thud", "gain": 0.85, "variants": 4, "layers": [
-    {"type": "tone", "hz": 62, "to_hz": 48, "attack_ms": 2, "decay_ms": 18, "amp": 0.85},
+  "step_ground": {"_doc": "packed earth: a short heel thud + real footstep grit", "gain": 0.85, "variants": 4, "layers": [
+    {"type": "tone", "hz": 62, "to_hz": 48, "attack_ms": 2, "decay_ms": 18, "amp": 0.7},
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "step_ground", "convert": "surface", "amp": 0.72}
+  ], "fallback": [
+    {"type": "tone", "hz": 62, "to_hz": 48, "attack_ms": 2, "decay_ms": 18, "amp": 0.2},
     {"type": "noise", "lo": 55, "hi": 165, "attack_ms": 1, "decay_ms": 14, "amp": 0.25}
   ]},
-  "step_grass": {"_doc": "grass: a soft thud and a distinct swish of blades", "gain": 0.85, "variants": 4, "layers": [
-    {"type": "tone", "hz": 50, "to_hz": 42, "attack_ms": 5, "decay_ms": 16, "amp": 0.55},
+  "step_grass": {"_doc": "grass: a soft thud and a real swish of blades", "gain": 0.85, "variants": 4, "layers": [
+    {"type": "tone", "hz": 50, "to_hz": 42, "attack_ms": 5, "decay_ms": 16, "amp": 0.45},
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "step_grass", "convert": "surface", "amp": 0.75}
+  ], "fallback": [
     {"type": "noise", "lo": 140, "hi": 390, "attack_ms": 10, "decay_ms": 45, "amp": 0.45, "delay_ms": 8}
   ]},
-  "step_mud": {"_doc": "mud: heavier, the boot sinks - and sucks free", "gain": 1.05, "variants": 4, "layers": [
-    {"type": "tone", "hz": 38, "to_hz": 30, "attack_ms": 8, "decay_ms": 42, "amp": 0.9},
-    {"type": "noise", "lo": 35, "hi": 110, "attack_ms": 14, "decay_ms": 48, "amp": 0.45},
-    {"type": "tone", "hz": 85, "to_hz": 42, "attack_ms": 8, "decay_ms": 28, "amp": 0.48, "delay_ms": 125}
+  "step_mud": {"_doc": "mud: heavier, the boot sinks and sucks free", "gain": 1.05, "variants": 4, "layers": [
+    {"type": "tone", "hz": 38, "to_hz": 30, "attack_ms": 8, "decay_ms": 42, "amp": 0.78},
+    {"type": "tone", "hz": 85, "to_hz": 42, "attack_ms": 8, "decay_ms": 28, "amp": 0.42, "delay_ms": 125},
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "step_mud", "convert": "surface", "amp": 0.78}
+  ], "fallback": [
+    {"type": "noise", "lo": 35, "hi": 110, "attack_ms": 14, "decay_ms": 48, "amp": 0.45}
   ]},
-  "step_stone": {"_doc": "rock / cobbles: hard and clicky - heel, then toe", "gain": 1.1, "variants": 4, "layers": [
-    {"type": "click", "hz": 350, "cycles": 2.0, "amp": 1.0},
-    {"type": "tone", "hz": 112, "to_hz": 88, "attack_ms": 1, "decay_ms": 11, "amp": 0.8},
-    {"type": "click", "hz": 270, "cycles": 1.5, "amp": 0.65, "delay_ms": 24}
+  "step_stone": {"_doc": "rock / cobbles: hard and clicky heel-toe with real grit", "gain": 1.1, "variants": 4, "layers": [
+    {"type": "click", "hz": 350, "cycles": 2.0, "amp": 0.9},
+    {"type": "tone", "hz": 112, "to_hz": 88, "attack_ms": 1, "decay_ms": 11, "amp": 0.7},
+    {"type": "click", "hz": 270, "cycles": 1.5, "amp": 0.58, "delay_ms": 24},
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "step_gravel", "convert": "surface", "amp": 0.45}
+  ], "fallback": [
+    {"type": "click", "hz": 350, "cycles": 1.0, "amp": 0.15}
   ]},
   "step_gravel": {"_doc": "gravel: a granular crunch of small stones", "gain": 1.05, "variants": 4, "layers": [
-    {"type": "tone", "hz": 62, "attack_ms": 2, "decay_ms": 13, "amp": 0.55},
+    {"type": "tone", "hz": 62, "attack_ms": 2, "decay_ms": 13, "amp": 0.48},
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "step_gravel", "convert": "surface", "amp": 0.88}
+  ], "fallback": [
     {"type": "click", "hz": 340, "cycles": 1.2, "amp": 0.6},
     {"type": "click", "hz": 285, "cycles": 1.2, "amp": 0.52, "delay_ms": 9},
     {"type": "click", "hz": 370, "cycles": 1.2, "amp": 0.48, "delay_ms": 18},
     {"type": "click", "hz": 310, "cycles": 1.2, "amp": 0.4, "delay_ms": 28},
     {"type": "noise", "lo": 160, "hi": 440, "attack_ms": 2, "decay_ms": 30, "amp": 0.5}
   ]},
-  "step_wood": {"_doc": "boards: a hollow, resonant floorboard knock with double thump", "gain": 1.15, "variants": 4, "layers": [
+  "step_wood": {"_doc": "boards: a hollow, resonant floorboard knock with real wood grain", "gain": 1.15, "variants": 4, "layers": [
+    {"type": "tone", "hz": 120, "to_hz": 92, "attack_ms": 1, "decay_ms": 48, "amp": 0.72},
+    {"type": "tone", "hz": 64, "to_hz": 48, "attack_ms": 2, "decay_ms": 34, "amp": 0.58},
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "step_wood", "convert": "surface", "amp": 0.78}
+  ], "fallback": [
     {"type": "click", "hz": 230, "cycles": 1.5, "amp": 0.85},
-    {"type": "tone", "hz": 120, "to_hz": 92, "attack_ms": 1, "decay_ms": 48, "amp": 0.85},
-    {"type": "tone", "hz": 64, "to_hz": 48, "attack_ms": 2, "decay_ms": 34, "amp": 0.7},
     {"type": "tone", "hz": 98, "to_hz": 76, "delay_ms": 26, "attack_ms": 1, "decay_ms": 26, "amp": 0.42}
   ]},
-  "step_snow": {"_doc": "snow: a muffled packing-down thump with a crisp crunch", "gain": 1.0, "variants": 4, "layers": [
-    {"type": "tone", "hz": 44, "to_hz": 34, "attack_ms": 6, "decay_ms": 34, "amp": 0.8},
+  "step_snow": {"_doc": "snow: a muffled packing-down thump with real crisp crunch", "gain": 1.0, "variants": 4, "layers": [
+    {"type": "tone", "hz": 44, "to_hz": 34, "attack_ms": 6, "decay_ms": 34, "amp": 0.68},
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "step_snow", "convert": "surface", "amp": 0.85}
+  ], "fallback": [
     {"type": "noise", "lo": 110, "hi": 320, "attack_ms": 12, "decay_ms": 42, "amp": 0.48},
     {"type": "click", "hz": 280, "cycles": 1.2, "amp": 0.35, "delay_ms": 16},
     {"type": "click", "hz": 240, "cycles": 1.0, "amp": 0.28, "delay_ms": 28}
   ]},
   "step_sand": {"_doc": "sand: light, soft and spread out", "gain": 0.9, "variants": 4, "layers": [
-    {"type": "noise", "lo": 55, "hi": 180, "attack_ms": 14, "decay_ms": 48, "amp": 0.65},
-    {"type": "tone", "hz": 46, "to_hz": 36, "attack_ms": 10, "decay_ms": 28, "amp": 0.5}
+    {"type": "tone", "hz": 46, "to_hz": 36, "attack_ms": 10, "decay_ms": 28, "amp": 0.42},
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "step_sand", "convert": "surface", "amp": 0.78}
+  ], "fallback": [
+    {"type": "noise", "lo": 55, "hi": 180, "attack_ms": 14, "decay_ms": 48, "amp": 0.65}
   ]},
   "step_water": {"_doc": "shallow water: a splash and spray", "gain": 1.1, "variants": 4, "layers": [
-    {"type": "tone", "hz": 44, "to_hz": 32, "attack_ms": 3, "decay_ms": 36, "amp": 0.6},
+    {"type": "tone", "hz": 44, "to_hz": 32, "attack_ms": 3, "decay_ms": 36, "amp": 0.52},
+    {"type": "game", "bank": "WATER", "role": "water_step", "convert": "surface", "amp": 0.88}
+  ], "fallback": [
     {"type": "noise", "lo": 70, "hi": 270, "attack_ms": 3, "decay_ms": 48, "amp": 0.65},
     {"type": "noise", "lo": 160, "hi": 400, "attack_ms": 12, "decay_ms": 62, "amp": 0.4, "delay_ms": 28}
   ]},
   "brush_in": {"_doc": "pushing into a bush: a soft swish of branches", "gain": 0.45, "variants": 3, "layers": [
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "brush", "convert": "surface", "amp": 0.88}
+  ], "fallback": [
     {"type": "noise", "lo": 150, "hi": 400, "attack_ms": 15, "decay_ms": 90, "amp": 0.6},
     {"type": "noise", "lo": 80, "hi": 200, "attack_ms": 25, "decay_ms": 110, "amp": 0.25}
   ]},
@@ -487,22 +512,30 @@
     {"type": "noise", "lo": 40, "hi": 180, "attack_ms": 2, "decay_ms": 90, "amp": 0.5}
   ]},
   "thunder_strike": {"_doc": "lightning striking near: a crack, then a long rolling rumble", "gain": 1.0, "variants": 2, "layers": [
-    {"type": "click", "hz": 200, "cycles": 1, "amp": 0.6},
+    {"type": "click", "hz": 200, "cycles": 1, "amp": 0.65},
+    {"type": "game", "bank": "WEATHER.THUNDER", "role": "thunder", "convert": "explosion", "amp": 1.0, "delay_ms": 20}
+  ], "fallback": [
     {"type": "tone", "hz": 40, "to_hz": 28, "attack_ms": 5, "decay_ms": 300, "amp": 0.9},
     {"type": "noise", "lo": 25, "hi": 110, "attack_ms": 40, "decay_ms": 600, "amp": 0.6, "delay_ms": 80},
     {"type": "noise", "lo": 30, "hi": 90, "attack_ms": 200, "decay_ms": 900, "amp": 0.35, "delay_ms": 300}
   ]},
   "wade_push": {"_doc": "a leg pushing through water: a slow swell of resistance", "gain": 1.0, "variants": 4, "layers": [
-    {"type": "noise", "lo": 40, "hi": 140, "attack_ms": 60, "decay_ms": 120, "amp": 0.6},
-    {"type": "tone", "hz": 38, "attack_ms": 50, "decay_ms": 110, "amp": 0.35}
+    {"type": "tone", "hz": 38, "attack_ms": 50, "decay_ms": 110, "amp": 0.35},
+    {"type": "game", "bank": "WATER", "role": "water_step", "convert": "surface", "amp": 0.75}
+  ], "fallback": [
+    {"type": "noise", "lo": 40, "hi": 140, "attack_ms": 60, "decay_ms": 120, "amp": 0.6}
   ]},
   "brush": {"_doc": "moving through bushes / reeds / tall grass: a light rustle of leaves", "gain": 0.6, "variants": 4, "layers": [
+    {"type": "game", "bank": "FEET_MATERIALS", "role": "brush", "convert": "surface", "amp": 0.85}
+  ], "fallback": [
     {"type": "noise", "lo": 180, "hi": 420, "attack_ms": 20, "decay_ms": 70, "amp": 0.5},
     {"type": "noise", "lo": 120, "hi": 260, "attack_ms": 30, "decay_ms": 90, "amp": 0.2, "delay_ms": 25}
   ]},
   "splash": {"_doc": "splashing into water", "gain": 1.0, "variants": 2, "layers": [
-    {"type": "noise", "lo": 60, "hi": 240, "attack_ms": 2, "decay_ms": 90, "amp": 0.7},
     {"type": "tone", "hz": 40, "attack_ms": 2, "decay_ms": 70, "amp": 0.5},
+    {"type": "game", "bank": "WATER", "role": "water_step", "convert": "surface", "amp": 0.92}
+  ], "fallback": [
+    {"type": "noise", "lo": 60, "hi": 240, "attack_ms": 2, "decay_ms": 90, "amp": 0.7},
     {"type": "noise", "lo": 150, "hi": 400, "attack_ms": 20, "decay_ms": 120, "amp": 0.3, "delay_ms": 50}
   ]},
   "swim_pull": {"_doc": "an arm pulling the water back: a long, heavy swell that eases off", "gain": 1.0, "variants": 3, "layers": [
@@ -555,13 +588,41 @@
     {"type": "click", "hz": 200, "cycles": 1, "delay_ms": 170, "amp": 0.8}
   ]},
   "gun_draw": {"_doc": "the gun slides up out of the leather, then clears it", "gain": 1.0, "layers": [
-    {"type": "noise", "lo": 90, "hi": 260, "attack_ms": 20, "decay_ms": 60, "amp": 0.35, "pan": 0.5},
+    {"type": "game", "bank": "WEAPONS", "role": "draw", "convert": "mech", "amp": 0.72, "pan": 0.5},
     {"type": "click", "hz": 230, "cycles": 1, "delay_ms": 110, "amp": 0.45, "pan": 0.5}
+  ], "fallback": [
+    {"type": "noise", "lo": 90, "hi": 260, "attack_ms": 20, "decay_ms": 60, "amp": 0.35, "pan": 0.5}
   ]},
   "gun_holster": {"_doc": "the gun drops into the holster and seats", "gain": 1.0, "layers": [
-    {"type": "noise", "lo": 80, "hi": 220, "attack_ms": 15, "decay_ms": 50, "amp": 0.3, "pan": 0.5},
-    {"type": "tone", "hz": 70, "delay_ms": 70, "attack_ms": 3, "decay_ms": 45, "amp": 0.55, "pan": 0.5},
+    {"type": "game", "bank": "WEAPONS", "role": "holster", "convert": "mech", "amp": 0.72, "pan": 0.5},
+    {"type": "tone", "hz": 70, "delay_ms": 70, "attack_ms": 3, "decay_ms": 45, "amp": 0.5, "pan": 0.5},
     {"type": "click", "hz": 200, "cycles": 1, "delay_ms": 75, "amp": 0.4, "pan": 0.5}
+  ], "fallback": [
+    {"type": "noise", "lo": 80, "hi": 220, "attack_ms": 15, "decay_ms": 50, "amp": 0.3, "pan": 0.5}
+  ]},
+  "longarm_draw": {"_doc": "drawing a rifle, repeater, shotgun, or bow from the shoulder", "gain": 1.0, "layers": [
+    {"type": "game", "bank": "MELEE", "role": "longarm_equip", "convert": "mech", "amp": 0.78, "pan": 0.2},
+    {"type": "tone", "hz": 68, "to_hz": 48, "delay_ms": 90, "attack_ms": 4, "decay_ms": 40, "amp": 0.42, "pan": 0.2}
+  ], "fallback": [
+    {"type": "noise", "lo": 70, "hi": 210, "attack_ms": 20, "decay_ms": 70, "amp": 0.35, "pan": 0.2}
+  ]},
+  "longarm_holster": {"_doc": "slinging a longarm onto the back", "gain": 1.0, "layers": [
+    {"type": "game", "bank": "MELEE", "role": "longarm_equip", "convert": "mech", "amp": 0.75, "pan": 0.2},
+    {"type": "tone", "hz": 58, "to_hz": 42, "delay_ms": 80, "attack_ms": 4, "decay_ms": 50, "amp": 0.5, "pan": 0.2}
+  ], "fallback": [
+    {"type": "noise", "lo": 70, "hi": 200, "attack_ms": 15, "decay_ms": 60, "amp": 0.32, "pan": 0.2}
+  ]},
+  "blade_draw": {"_doc": "a blade slipping free from its leather sheath", "gain": 1.0, "layers": [
+    {"type": "game", "bank": "WEAPONS", "role": "blade_sheath", "convert": "small", "amp": 0.75, "pan": 0.55},
+    {"type": "click", "hz": 290, "cycles": 1, "delay_ms": 85, "amp": 0.35, "pan": 0.55}
+  ], "fallback": [
+    {"type": "noise", "lo": 140, "hi": 360, "attack_ms": 15, "decay_ms": 45, "amp": 0.28, "pan": 0.55}
+  ]},
+  "blade_holster": {"_doc": "a blade sliding back into its sheath", "gain": 1.0, "layers": [
+    {"type": "game", "bank": "WEAPONS", "role": "blade_sheath", "convert": "small", "amp": 0.75, "pan": 0.55},
+    {"type": "click", "hz": 240, "cycles": 1, "delay_ms": 70, "amp": 0.42, "pan": 0.55}
+  ], "fallback": [
+    {"type": "noise", "lo": 120, "hi": 320, "attack_ms": 12, "decay_ms": 45, "amp": 0.28, "pan": 0.55}
   ]},
   "fish_hooked": {"_doc": "the strike: the hook sets, the rod loads", "gain": 1.0, "layers": [{"type": "tone", "hz": 85, "to_hz": 55, "attack_ms": 2, "decay_ms": 70, "amp": 0.9, "pan": 0.0}, {"type": "click", "hz": 240, "cycles": 1, "amp": 0.5, "pan": 0.0}]},
   "reel_click": {"_doc": "one tooth of the reel's ratchet", "gain": 1.0, "layers": [{"type": "click", "hz": 320, "cycles": 1, "amp": 0.45, "pan": 0.35}]},
@@ -582,6 +643,8 @@
   "horse_pat": {"_doc": "your palm on the horse's neck: two soft pats", "gain": 1.0, "layers": [{"type": "tone", "hz": 65, "to_hz": 50, "attack_ms": 8, "decay_ms": 60, "amp": 0.5, "pan": 0.0}, {"type": "tone", "hz": 65, "to_hz": 50, "delay_ms": 260, "attack_ms": 8, "decay_ms": 60, "amp": 0.45, "pan": 0.0}]},
   "rein_pull": {"_doc": "the reins drawn back", "gain": 1.0, "layers": [{"type": "noise", "lo": 60, "hi": 180, "attack_ms": 60, "decay_ms": 150, "amp": 0.45, "pan": 0.0}, {"type": "tone", "hz": 50, "attack_ms": 60, "decay_ms": 160, "amp": 0.4, "pan": 0.0}]},
   "rain_drop": {"_doc": "one rain drop on the hat brim: a small, crisp tap", "gain": 0.35, "variants": 4, "layers": [
+    {"type": "game", "bank": "WATER", "role": "rain_drop", "convert": "drop", "amp": 0.92}
+  ], "fallback": [
     {"type": "click", "hz": 220, "cycles": 1.5, "amp": 1.0},
     {"type": "tone", "hz": 150, "attack_ms": 0.5, "decay_ms": 6, "amp": 0.5}
   ]},
@@ -606,8 +669,15 @@
   "sizzle": {"_doc": "meat spitting over the fire, felt through the stick", "gain": 1.0, "layers": [{"type": "click", "hz": 400, "cycles": 1, "amp": 0.18, "pan": 0.0}]},
   "spur": {"_doc": "heels into the horse's flanks: a quick double kick, both sides", "gain": 1.0, "layers": [{"type": "tone", "hz": 60, "to_hz": 42, "attack_ms": 3, "decay_ms": 45, "amp": 0.55, "pan": -0.7}, {"type": "tone", "hz": 60, "to_hz": 42, "attack_ms": 3, "decay_ms": 45, "amp": 0.55, "pan": 0.7}]},
   "wheel_tick": {"_doc": "the weapon wheel's selector clicking over one notch", "gain": 1.0, "layers": [{"type": "click", "hz": 300, "cycles": 1, "amp": 0.55, "pan": 0.0}]},
+  "ui_confirm": {"_doc": "confirming a menu selection (e.g. Story on the main menu): a crisp, weighty thump", "gain": 1.0, "layers": [
+    {"type": "click", "hz": 260, "cycles": 1.5, "amp": 0.75, "pan": 0.0},
+    {"type": "tone", "hz": 72, "to_hz": 44, "attack_ms": 2, "decay_ms": 55, "amp": 0.8, "pan": 0.0}
+  ]},
   "hail_drop": {"_doc": "a pellet of hail hitting the hat and shoulders: sharper and harder than rain", "gain": 0.55, "variants": 4, "layers": [
-    {"type": "click", "hz": 290, "cycles": 1.5, "amp": 1.0},
+    {"type": "click", "hz": 290, "cycles": 1.2, "amp": 0.55},
+    {"type": "game", "bank": "WATER", "role": "hail_drop", "convert": "drop", "amp": 0.95}
+  ], "fallback": [
+    {"type": "click", "hz": 290, "cycles": 1.5, "amp": 0.55},
     {"type": "tone", "hz": 170, "to_hz": 110, "attack_ms": 0.5, "decay_ms": 12, "amp": 0.6}
   ]},
   "wind_gust": {"_doc": "a heavy storm or blizzard gust sweeping past", "gain": 0.65, "variants": 3, "layers": [
@@ -615,6 +685,8 @@
     {"type": "tone", "hz": 38, "to_hz": 28, "attack_ms": 180, "decay_ms": 320, "amp": 0.3, "pan": 0.0}
   ]},
   "thunder_roll": {"_doc": "distant thunder rumbling across the sky", "gain": 0.85, "variants": 2, "layers": [
+    {"type": "game", "bank": "WEATHER.THUNDER", "role": "thunder", "convert": "thunder", "amp": 0.95}
+  ], "fallback": [
     {"type": "tone", "hz": 44, "to_hz": 26, "attack_ms": 120, "decay_ms": 520, "amp": 0.85, "pan": 0.0},
     {"type": "noise", "lo": 24, "hi": 90, "attack_ms": 90, "decay_ms": 480, "amp": 0.5, "pan": 0.0}
   ]},
@@ -635,5 +707,43 @@
     {"type": "click", "hz": 240, "cycles": 1.5, "amp": 0.65, "pan": 0.2},
     {"type": "tone", "hz": 85, "to_hz": 48, "delay_ms": 25, "attack_ms": 4, "decay_ms": 110, "amp": 0.9, "pan": 0.0},
     {"type": "noise", "lo": 65, "hi": 210, "delay_ms": 30, "attack_ms": 8, "decay_ms": 75, "amp": 0.5, "pan": 0.0}
+  ]},
+  "fuse_crackle": {"_doc": "lit dynamite fuse / burning bottle rag sizzling in the grip", "gain": 0.85, "variants": 4, "layers": [
+    {"type": "click", "hz": 360, "cycles": 1, "amp": 0.45, "pan": 0.55},
+    {"type": "noise", "lo": 220, "hi": 560, "attack_ms": 2, "decay_ms": 16, "amp": 0.35, "pan": 0.55}
+  ]},
+  "quickdraw_tension": {"_doc": "taut rising pulse while charging a quick-draw or duel on R2", "gain": 0.75, "layers": [
+    {"type": "tone", "hz": 58, "to_hz": 66, "attack_ms": 18, "decay_ms": 45, "amp": 0.45, "pan": 0.45}
+  ]},
+  "cloth_rub_gritty": {"_doc": "gritty cloth scrub along a heavily fouled or rusted barrel", "gain": 1.0, "variants": 4, "layers": [
+    {"type": "noise", "lo": 150, "hi": 480, "attack_ms": 45, "decay_ms": 175, "amp": 0.45, "pan": 0.0},
+    {"type": "click", "hz": 320, "cycles": 1, "delay_ms": 35, "amp": 0.22, "pan": 0.0},
+    {"type": "click", "hz": 280, "cycles": 1, "delay_ms": 95, "amp": 0.18, "pan": 0.0}
+  ]},
+  "eagle_eye_in": {"_doc": "entering Eagle Eye: crisp, airy focus shimmer", "gain": 1.0, "layers": [
+    {"type": "tone", "hz": 130, "to_hz": 210, "attack_ms": 35, "decay_ms": 95, "amp": 0.45, "pan": 0.0},
+    {"type": "click", "hz": 340, "cycles": 1.5, "delay_ms": 20, "amp": 0.3, "pan": 0.0}
+  ]},
+  "eagle_eye_out": {"_doc": "leaving Eagle Eye: soft fading exhale", "gain": 1.0, "layers": [
+    {"type": "tone", "hz": 190, "to_hz": 125, "attack_ms": 15, "decay_ms": 65, "amp": 0.3, "pan": 0.0}
+  ]},
+  "oar_pull": {"_doc": "oar blade biting into water and sweeping past the boat", "gain": 1.0, "variants": 3, "layers": [
+    {"type": "click", "hz": 190, "cycles": 1, "amp": 0.28},
+    {"type": "noise", "lo": 35, "hi": 130, "attack_ms": 80, "decay_ms": 220, "amp": 0.65},
+    {"type": "tone", "hz": 48, "to_hz": 34, "attack_ms": 50, "decay_ms": 190, "amp": 0.45}
+  ]},
+  "boat_wave": {"_doc": "gentle water lapping against the boat hull", "gain": 0.65, "variants": 3, "layers": [
+    {"type": "noise", "lo": 28, "hi": 85, "attack_ms": 140, "decay_ms": 260, "amp": 0.4},
+    {"type": "tone", "hz": 34, "to_hz": 28, "attack_ms": 110, "decay_ms": 210, "amp": 0.28}
+  ]},
+  "horse_spook": {"_doc": "spooked horse jerking at the reins and shuddering beneath the saddle", "gain": 1.0, "variants": 3, "layers": [
+    {"type": "noise", "lo": 75, "hi": 230, "attack_ms": 15, "decay_ms": 70, "amp": 0.5},
+    {"type": "tone", "hz": 60, "to_hz": 42, "attack_ms": 6, "decay_ms": 55, "amp": 0.65},
+    {"type": "tone", "hz": 54, "to_hz": 38, "delay_ms": 80, "attack_ms": 8, "decay_ms": 50, "amp": 0.5}
+  ]},
+  "wagon_brake": {"_doc": "locked or hard-braking wagon wheels skidding and chattering across the road", "gain": 1.0, "variants": 4, "layers": [
+    {"type": "noise", "lo": 55, "hi": 210, "attack_ms": 10, "decay_ms": 85, "amp": 0.65},
+    {"type": "tone", "hz": 46, "to_hz": 34, "attack_ms": 8, "decay_ms": 70, "amp": 0.55},
+    {"type": "click", "hz": 250, "cycles": 1, "delay_ms": 22, "amp": 0.35}
   ]}
 }

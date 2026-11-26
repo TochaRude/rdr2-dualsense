@@ -39,9 +39,10 @@ private:
     LedMode led_mode_ = LedMode::Auto;
     bool lightbar_on_ = true, lightbar_off_sent_ = false, ammo_leds_ = true, time_of_day_ = true;
     // horse
-    double next_horse_heart_ = 0, next_breath_ = 0;
+    double next_horse_heart_ = 0, next_breath_ = 0, next_horse_spook_ = 0;
+    float prev_agitation_ = 0;
     bool rearing_ = false;
-    bool armed_before_ = false, weapon_seen_ = false, dead_eye_was_ = false;
+    bool armed_before_ = false, weapon_seen_ = false, dead_eye_was_ = false, eagle_eye_was_ = false;
     double honor_until_ = 0;
     float minigame_gain_ = 0.7f, weather_gain_ = 0;
     double next_drop_ = 0, next_texture_ = 0, next_gust_ = 0, next_thunder_ = 0, next_carry_ = 0;
@@ -50,13 +51,18 @@ private:
     bool triggers_on_ = true;
     float life_gain_ = 0.6f;
     int texture_n_ = 0;
+    float clean_dirt_prev_ = 1.0f;
+    bool cleaning_was_ = false;
     bool honor_up_ = true;
     int prev_health_core_ = -1;
     double health_led_until_ = -10.0;
     uint32_t weapon_before_ = 0;
+    uint32_t group_before_ = 0;
+    bool lantern_before_ = false;
     int attach_before_ = -1;
     // transport
     double rail_dist_ = 0, last_trans_t_ = 0, next_rut_ = 0, next_near_train_ = 0;
+    double next_boat_wave_ = 0, next_wagon_brake_ = 0;
     // body
     double next_heart_ = 0, next_shiver_ = 0;
     double damage_flash_until_ = 0;

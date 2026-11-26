@@ -19,6 +19,7 @@ inline int GET_DEFAULT_WEAPON_ATTACH_POINT(Hash weapon) { return invoke<int>(0x6
 inline bool GET_PLAYER_TARGET_ENTITY(Player p, Entity* e) { return invoke<int>(0xAE663DDD99C8A670ull, p, e) != 0; }
 inline bool IS_PLAYER_TARGETTING_ANYTHING(Player p) { return invoke<int>(0x4605C66E0F935F83ull, p) != 0; }
 inline bool IS_SPECIAL_ABILITY_ACTIVE(Player p) { return invoke<int>(0xB16223CB7DA965F0ull, p) != 0; }
+inline bool IS_SECONDARY_SPECIAL_ABILITY_ACTIVE(Player p) { return invoke<int>(0x45AB66D02B601FA7ull, p) != 0; }
 inline float GET_PLAYER_DEAD_EYE(Player p) { return invoke<float>(0xA81D24AE0AF99A5Eull, p); }
 inline bool IS_LAW_INCIDENT_ACTIVE(Player p) { return invoke<int>(0xAD401C63158ACBAAull, p) != 0; }
 inline int GET_WANTED_SCORE(Player p) { return invoke<int>(0xDD5FD601481F648Bull, p); }
@@ -200,6 +201,7 @@ inline bool IS_ANY_UIAPP_ACTIVE() { return invoke<int>(0xAC959AB99AAF3D9Full) !=
 inline bool IS_PAUSE_MENU_ACTIVE() { return invoke<int>(0x535384D6067BA42Eull) != 0; }
 inline bool IS_SCREEN_FADED_OUT() { return invoke<int>(0xF5472C80DF2FF847ull) != 0; }
 inline bool IS_LOADING_SCREEN_VISIBLE() { return invoke<int>(0xB54ADBE65D528FCBull) != 0; }
+inline int GET_CURRENT_LANGUAGE() { return invoke<int>(0xDB917DA5C6835FCCull); }
 inline int GET_CLOCK_HOURS() { return invoke<int>(0xC82CF208C2B19199ull); }
 inline Hash GET_PREV_WEATHER_TYPE_HASH_NAME() { return invoke<Hash>(0x4BEB42AEBCA732E9ull); }
 inline float GET_TEMPERATURE_AT_COORDS(float x, float y, float z) { return invoke<float>(0xB98B78C3768AF6E0ull, x, y, z); }

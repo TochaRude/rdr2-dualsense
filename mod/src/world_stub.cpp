@@ -20,5 +20,7 @@ void World::add_gyro(float yaw, float pitch) {
 void World::notify_shot(double) {}
 float World::pan_to(float, float, float, float, float) const { return 0; }
 float World::frame_time() const { return 0; }
+bool text_inject_ready() { return false; }
+void text_inject_set_game_lang(int) {}
 
 }  // namespace dsr2

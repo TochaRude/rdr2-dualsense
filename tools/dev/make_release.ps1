@@ -25,7 +25,7 @@ try {
     New-Item -ItemType Directory -Force "$stage\DualSenseRDR2" | Out-Null
     Copy-Item $asi $stage
     Copy-Item $coreDll "$stage\DualSenseRDR2\"
-    foreach ($f in "weapons.json", "haptics.json", "sound_labels.json", "speech_voices.txt") { Copy-Item "$root\tools\trigger_lab\data\$f" "$stage\DualSenseRDR2\" }
+    foreach ($f in "weapons.json", "haptics.json", "sound_labels.json", "speech_voices.txt", "translations.json") { Copy-Item "$root\tools\trigger_lab\data\$f" "$stage\DualSenseRDR2\" }
     # the Settings page for Lenny's Mod Loader, laid out like <game>\lml
     $lml = "$root\mod\lml\DualSenseRDR2"
     $archives = @("replace\update_4\x64\data\ui\startup_data.rpf")
