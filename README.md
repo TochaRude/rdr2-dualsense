@@ -5,25 +5,22 @@ dialogue you can feel (experimental), lightbar, player LEDs, touchpad gestures, 
 8-language in-game settings menu, and microphone (beta), driven by what the game is actually doing
 (ScriptHookRDR2 `.asi` mod).
 
-> **About This Fork**  
-> This repository is an **independent community fork** of [OldKrab/rdr2-dualsense](https://github.com/OldKrab/rdr2-dualsense) ([Nexus Mods](https://www.nexusmods.com/reddeadredemption2/mods/11444)), originally created by **OldKrab**.  
-> The adjustments and fixes in this fork were developed by **TochaRude** with the help of **Antigravity**.  
-> This fork is **not** an official collaboration with OldKrab — full credit for the original architecture and core mod belongs to the original author.  
+> **About This Fork / Continuation**  
+> This repository began as an independent community fork of [OldKrab/rdr2-dualsense](https://github.com/OldKrab/rdr2-dualsense) ([Nexus Mods](https://www.nexusmods.com/reddeadredemption2/mods/11444)), originally created by **OldKrab**.  
+> With **OldKrab's blessing**, development and Nexus Mods releases are now continued independently here by **TochaRude** (built with the help of **Antigravity**). Full credit for the original architecture and core mod belongs to **OldKrab**.  
 > **Testers and feedback are very welcome!** Please report bugs, controller quirks, or suggestions via [GitHub Issues](https://github.com/TochaRude/rdr2-dualsense/issues).
 
-Players: download the latest stable or pre-release build from [GitHub Releases](https://github.com/TochaRude/rdr2-dualsense/releases)
+Players: download the latest release from [GitHub Releases](https://github.com/TochaRude/rdr2-dualsense/releases)
 and follow the installation steps in `README.txt` inside the archive.
 
 ---
 
-## Versioning Convention (`<upstream>-fork.<N>`)
+## Versioning
 
-Because this fork diverges from OldKrab's official releases without being part of the upstream release train, versions follow `<upstream-base>-fork.<N>`:
-- **`v1.3.0-fork.1`**: Based on OldKrab's original **`v1.3.0`**, Fork Release **`1`**.
-- **`v1.3.0-fork.2`**: Exit-crash fix, **ScriptHookRDR2 V2** save-load hot-reload architecture, and `DualSenseSettings` recovery.
-- **`v1.3.0-fork.3`**: Gyro upward-drift and post-shot camera recoil-compounding fix.
-- **`v1.4.0-fork.1-pre.1`** *(Pre-Release)*: Merged upstream **`v1.4.0`** (`24535bd`) + expanded 63-row in-game DualSense Settings page (`Triggers.Strength` & `Touchpad`), 8-language UI with English fallback, full-travel lever/bolt/pump cycling + 93-weapon coverage, Quick-Draw R2 tension, lit fuses, Eagle Eye, progressive gun cleaning, boat rowing, spooked horse & wagon braking, and authentic RDR2 `.awc` soundbank haptics.
-- Future fork releases built on the same base increment the suffix (`v1.4.0-fork.1`, `v1.4.0-fork.2`, ...). If changes from a newer upstream version are merged later, the upstream prefix updates accordingly. This guarantees fork releases never collide with official upstream version numbers.
+Starting with **`v2.0.0`**, this repository publishes standalone releases directly from `main`:
+- **`v1.3.0-fork.1` – `v1.3.0-fork.3`**: Earlier community fork releases built on OldKrab's `v1.3.0`.
+- **`v1.4.0-fork.1-pre.1`** *(Pre-Release)*: Combined upstream `v1.4.0` (`24535bd`) with expanded 63-row 8-language settings UI, touchpad gestures, full-travel actions, 93-weapon coverage, world haptics, and `.awc` soundbank effects.
+- **`v2.0.0`**: First full standalone release on `main`, adding native-reviewed Russian localization, a clean DualSense hardware reset when quitting RDR2 (turning off lightbar, LEDs, triggers, rumble, speaker route, and releasing the HID handle cleanly), and updated end-user documentation.
 
 ---
 
@@ -65,7 +62,7 @@ Because this fork diverges from OldKrab's official releases without being part o
 
 ### 6. Stability, Gyro/Camera & Hardware Fixes
 - **Zero Unwanted L2 Camera Pull & Drift-Free Gyro:** Preserves RDR2's native right-stick deadzone, enforces case-insensitive `Gyro.Mode` parsing (`aim` / `always`), armed-only free-aim gating, variance-bounded stillness-only bias learning (`[-5, +5] deg/s`), smooth `0.8 deg/s` soft deadzone, menu/loading gating for `Gyro.Mode=always`, and independent camera yaw/pitch writes with a `0.40 s` post-shot pitch recoil mute in `Output=camera`.
-- **Async Startup, Thread Safety & Clean Shutdown:** Moves heavy JSON/audio boot onto an async Win32 `CreateThread`, uses immediate `fflush` on `INFO`/`WARN`/`ERROR` logs, enforces thread-safe audio-thread speaker purging, clean overlapped HID cancellation (`CancelIoEx`), immortal process-lifetime singletons (preventing `0xc0000409` / `0x40000015` CRT `atexit` exit crashes), and `407/407` passing offline selftests (`dsr2_test.exe --selftest`) plus automated Win32 hot-reload verification (`dsr2_reload_test.exe`).
+- **Async Startup, Clean Exit Reset & Thread Safety:** Moves heavy JSON/audio boot onto an async Win32 `CreateThread`, uses immediate `fflush` on `INFO`/`WARN`/`ERROR` logs, enforces thread-safe audio-thread speaker purging, executes a Loader-Lock-safe final HID reset (`DLL_PROCESS_DETACH` -> `reset_on_exit()`, clearing lightbar, player LEDs, mute LED, triggers, rumble, and speaker routing before closing the handle), prevents `0xc0000409` / `0x40000015` CRT `atexit` exit crashes, and passes offline selftests (`dsr2_test.exe --selftest`) plus automated Win32 hot-reload verification (`dsr2_reload_test.exe`).
 - **ScriptHookRDR2 V2 Save-Load Hot-Reload, Datastore Recovery & Safe LML Installer:** Splits a thin, CRT-free, thread-free `DualSenseRDR2.asi` loader shim from the pinned `DualSenseRDR2\DualSenseCore.dll` so `FreeLibrary`/`LoadLibrary` save-load cycles unload and re-register cleanly while keeping XInput hooks, injected strings, and worker threads intact; resets transient entity handles across loads, rebuilds `ScriptDatastoreRoot.DualSenseSettings`, passes native game rumble through if a script thread ever stalls, and backs up/restores third-party LML archives via SHA256 markers in `install.ps1` / `uninstall.ps1`.
 - **DualSense HID & WASAPI Precision:** Dynamic HID feature report `0x05` length (64-byte USB / 41-byte Bluetooth) with strict gyro calibration range validation, USB/BT endpoint handling, 24/32-bit PCM support, and a lock-free SPSC ring buffer.
 

@@ -73,6 +73,9 @@ public:
     // Exposed for unit testing of HID payload/CRC encoding.
     static uint32_t bt_crc32(const uint8_t* data, size_t n);
     void encode_payload(const OutputState& o, uint8_t* p) { build_payload(o, p); }
+    static OutputState reset_output();
+    static void build_reset_payload(uint8_t* p, bool force_usb_mute, bool release_lightbar);
+    void reset_on_exit() noexcept;
 
 private:
     struct GyroCal {
@@ -92,15 +95,19 @@ private:
     std::atomic<bool> running_{false}, connected_{false}, usb_{true};
     std::atomic<float> rate_{0};
     HANDLE dev_ = INVALID_HANDLE_VALUE;
+    std::atomic<HANDLE> raw_dev_{INVALID_HANDLE_VALUE};
     HANDLE read_ev_ = nullptr, write_ev_ = nullptr, hap_ev_ = nullptr;
+    std::atomic<HANDLE> exit_ev_{nullptr};
     mutable std::mutex dev_mu_;          // protects dev_, name_, write_buf_, hap_buf_
     uint8_t hap_counter_ = 0;
     size_t in_len_ = 64, out_len_ = 48;
-    uint8_t bt_seq_ = 0;
-    bool lightbar_released_ = false;
-    // audio output of the controller (USB): -1 unknown, 0 internal speaker, 1 headphone jack. The controller
-    // starts on the jack even with nothing plugged in, so the speaker stays silent until we route it.
-    int routed_ = -1, routing_ = -1;
+    std::atomic<size_t> raw_out_len_{48};
+    std::atomic<uint8_t> bt_seq_{0};
+    std::atomic<bool> lightbar_released_{false};
+    // audio output of the controller (USB): -1 unknown, 0 muted, 1 headphone jack, 2 built-in speaker. The
+    // controller starts on the jack even with nothing plugged in, so the speaker stays silent until routed.
+    std::atomic<int> routed_{-1};
+    int routing_ = -1;
     bool headphones_ = false;
     GyroCal gyro_cal_;
     std::vector<uint8_t> last_payload_, write_buf_, hap_buf_;

@@ -1,4 +1,4 @@
-DualSense for RDR2  v1.4.0-fork.1-pre.1  -  by OldKrab (Community Fork Pre-Release)
+DualSense for RDR2  v2.0.0  -  Community Edition (by OldKrab, continued by TochaRude)
 =================================================================================
 
 Full DualSense support for Red Dead Redemption 2 on PC: adaptive triggers made per weapon,
@@ -129,29 +129,34 @@ Debug=1 writes details to DualSenseRDR2.log - attach it when reporting a problem
 
 CREDITS
 -------
-TochaRude (https://github.com/TochaRude): the bow, lasso, fists, mounting, trains, weather, carrying and the
-player LED modes of 1.4.0, the speaker's game sounds, and many fixes.
+Original DualSense RDR2 architecture & mod by OldKrab (https://www.nexusmods.com/reddeadredemption2/mods/11444).
+Continued as an independent Community Edition by TochaRude (https://github.com/TochaRude) with OldKrab's
+blessing (bow, lasso, fists, mounting, trains, weather, carrying, player LED modes, 63-row 8-language settings UI,
+touchpad gestures, 93-weapon support, ScriptHookRDR2 V2 stability, and exit controller reset).
 Game research: alloc8or's RDR3 native database, femga's rdr3_discoveries, Halen84 and others' decompiled
 script references. nlohmann/json (MIT). stb_vorbis by Sean Barrett (public domain). Script Hook RDR2 by
 Alexander Blade. Haptics over Bluetooth: the report format worked out by SAxense (https://apps.sdore.me/SAxense).
-Source code (MIT): see the mod page.
+Source code (MIT): https://github.com/TochaRude/rdr2-dualsense
 
 
 CHANGES
 -------
-1.4.0-fork.1-pre.1  Community fork updates on top of 1.4.0 & main (v1.3.0-fork.3):
-            - Expanded in-game DualSense settings page (63 rows / 7 categories, rebuilt startup_data.rpf)
-              including global Triggers.Strength (0-200%) and configurable Touchpad gestures.
-            - Automatic multi-language settings UI (EN, DE, FR, ES, IT, PT, PL, RU) with English fallback.
-            - Full-travel lever/bolt/pump cycling with mid-stroke detents & dirty slips (HammerSlip), refined
-              double-action revolver indexing, and complete 93-weapon coverage.
-            - Quick-Draw / Duel R2 tension wall (triggers stay free on Circle melee), lit fuse crackle +
-              flicker for dynamite/molotovs, Eagle Eye glow & chime, progressive gun cleaning (gritty ->
-              silky), boat rowing & hull wave lap, spooked horse rein tugs, and wagon braking judder.
-            - Authentic RDR2 .awc soundbank haptics (FEET_MATERIALS, WATER, MELEE, WEATHER.THUNDER,
-              FRONTEND), lasso cadence/dedup fix, and gated ui_confirm on loaded main/pause menus.
-            - Includes all stability fixes from main: CRT-free ASI shim + pinned DualSenseCore.dll for
-              ScriptHookRDR2 V2 save-load reloads, zero exit crashes, and drift-free gyro calibration.
+2.0.0  Community Edition release (superseding v1.3.0-fork.1..v1.3.0-fork.3 & v1.4.0-fork.1-pre.1):
+       - Expanded in-game DualSense settings page (63 rows / 7 categories, rebuilt startup_data.rpf)
+         including global Triggers.Strength (0-200%) and configurable Touchpad gestures.
+       - Automatic multi-language settings UI (EN, DE, FR, ES, IT, PT, PL, and native-reviewed RU) with
+         English fallback.
+       - Full-travel lever/bolt/pump cycling with mid-stroke detents & dirty slips (HammerSlip), refined
+         double-action revolver indexing, and complete 93-weapon coverage.
+       - Quick-Draw / Duel R2 tension wall (triggers stay free on Circle melee), lit fuse crackle +
+         flicker for dynamite/molotovs, Eagle Eye glow & chime, progressive gun cleaning (gritty ->
+         silky), boat rowing & hull wave lap, spooked horse rein tugs, and wagon braking judder.
+       - Authentic RDR2 .awc soundbank haptics (FEET_MATERIALS, WATER, MELEE, WEATHER.THUNDER,
+         FRONTEND), lasso cadence/dedup fix, and gated ui_confirm on loaded main/pause menus.
+       - Clean DualSense hardware reset on game exit (clears lightbar, player LEDs, mute LED, triggers,
+         rumble, and USB speaker route and releases the HID handle cleanly).
+       - Includes all stability fixes: CRT-free ASI shim + pinned DualSenseCore.dll for ScriptHookRDR2 V2
+         save-load reloads, zero exit crashes, and drift-free gyro calibration.
 1.4.0  New, from TochaRude: punches, blocks and hits felt in the triggers, a heavier blow for a knockout;
        the bow gets heavier as you draw it, creaks and strains; the lasso stiffens both triggers while you
        hold someone; the fishing cast loads up on R2; a thump when you get on or off a horse or a wagon, and

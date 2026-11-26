@@ -1,100 +1,120 @@
 === Nexus Mods page text (paste into the description; Nexus uses BBCode) ===
 
-NAME:     DualSense for RDR2 - Adaptive Triggers and Haptics
-VERSION:  1.4.0
+NAME:     DualSense for RDR2 - Adaptive Triggers, Haptics & Controller Features (v2.0.0)
+VERSION:  2.0.0
 CATEGORY: Gameplay  (or: Utilities)
 IMAGES:   release/banner.png (main image)
 SUMMARY (short):
-Adaptive triggers for every weapon - each gun with its own pull, firing exactly on the break - and haptics
-from what the game is really doing: the real hooves on the real ground, footsteps, hits, Dead Eye, fishing line tension.
+Complete DualSense experience for Red Dead Redemption 2 on PC: per-weapon adaptive triggers, voice-coil haptics,
+touchpad gestures, player LEDs, lightbar effects, controller speaker sounds, and a 63-option in-game menu in 8 languages — over USB or Bluetooth.
 
 --- DESCRIPTION ---
 
-[size=5][b]DualSense for RDR2[/b][/size]
+[size=5][b]DualSense for RDR2 (v2.0.0 — Community Edition)[/b][/size]
 
-[b]All-in-one DualSense support for RDR2: adaptive triggers for every weapon and haptics for everything Arthur feels - on a cable or over Bluetooth, the same.[/b]
-It also drives the lightbar, the player LEDs and the controller's speaker, and shows PlayStation buttons in the game. Every setting
-is in the game's own menu: Pause > Settings > Controls > Controller > DualSense.
+[b]Full PlayStation DualSense support for Red Dead Redemption 2 on PC — over USB or Bluetooth.[/b]
+Originally created by [b]OldKrab[/b] ([url=https://www.nexusmods.com/reddeadredemption2/mods/11444]original Nexus Mods page[/url]) and continued independently with OldKrab's blessing by [b]TochaRude[/b].
 
-[size=4][b]Triggers[/b][/size]
+Everything works straight from what is actually happening in the game — every gun has its own trigger feel, footsteps and hooves match the ground under you, and you can tweak every single setting inside the pause menu: [b]Pause > Settings > Controls > Controller > DualSense[/b].
+
+---
+
+[size=4][b]What's New Compared to OldKrab's v1.3.0[/b][/size]
+If you played the original 1.3.0 release, here is everything new for players in v2.0.0:
+
 [list]
-[*]Every weapon has its own pull - take-up, wall, crisp break - and the shot lands exactly on the break
-[*]Aimed shots with one gun: hammer / lever / bolt / pump worked with R2; from the hip and with two guns the game cycles them for you
-[*]The kick comes with the game's real shot; a clean gun works like clockwork, a dirty one drags like mud;
-exhaustion and cold make the pull shaky
-[*]Dead Eye: every painted target ticks, every shot of the volley kicks as it fires
-[*]Fishing: R2 loads up the cast and tugs when a fish bites; L2 carries the real line tension and strains before it snaps
-[*]Bow: R2 gets heavier the further you draw, the wood creaks, your arm strains if you hold too long
-[*]Lasso: both triggers stiffen while you hold someone on the rope
-[*]Fists: punches, blocks and hits in the triggers, a heavier blow for a knockout
-[*]Weapon wheel: a light tick for every weapon you move over; L2/R2 click like a selector switch - never like a shot
+[*][b]Huge In-Game Settings Menu in 8 Languages:[/b] The in-game [i]DualSense[/i] page grew from 27 to 63 options and automatically appears in [b]English, German, French, Spanish, Italian, Portuguese, Polish, or Russian[/b] (falling back to English for other languages). Includes a brand-new global [b]Trigger Strength[/b] slider (0–200%).
+[*][b]Customizable Touchpad Gestures:[/b] Map [i]Click, Swipe Up/Down/Left/Right[/i], and [i]Two-Finger Tap[/i] directly in the pause menu to handy shortcuts like Map/Camera, Whistle, Weapon Wheel, Eagle Eye, Bag, Pause, and more.
+[*][b]Bow, Lasso & Full-Travel Guns:[/b]
+  [list]
+  [*][b]Bow:[/b] R2 gets progressively heavier the further you draw, the wood creaks as it bends, your arm strains if you hold too long, and letting down feels different from loosing an arrow.
+  [*][b]Rifles, Repeaters & Shotguns:[/b] Full-travel cycling on lever-action, bolt-action, and pump-action weapons with a mid-stroke click, dirt stiffness, and occasional dirty-gun slips.
+  [*][b]All 93 Weapons Covered:[/b] Includes unique Story revolvers/pistols (like Midnight's & Granger's), DLC/Online variants, knives, axes, machetes, lanterns, bolas, and more.
+  [*][b]Lasso & Fishing:[/b] Both L2 and R2 tighten while holding someone on the lasso; casting a fishing line loads progressively onto R2.
+  [/list]
+[*][b]Quick-Draw & Melee Feedback:[/b] Slowly half-pulling R2 while holstered on foot builds smooth duel tension up to a crisp wall; punches, blocks, and knockouts vibrate in the triggers (while Circle stays completely loose for melee).
+[*][b]Rich World & Atmosphere Effects:[/b]
+  [list]
+  [*][b]Eagle Eye & Lit Fuses:[/b] Soft focus chime with an icy blue-white glow for Eagle Eye, plus sparkling fuse crackles and an orange-to-red flickering lightbar when holding lit dynamite or fire bottles.
+  [*][b]Camp, Horses & Transport:[/b] Progressive gun cleaning (starts gritty on dirty guns, turns silky smooth as the barrel gets clean), heavy horse/wagon mounts & jump landings, spooked horse rein tugs, boat rowing strokes & gentle hull waves, passing trains, wagon braking, multi-stage herb plucking, and heavy body carrying weight.
+  [*][b]Expanded Weather:[/b] Hail, storm/blizzard wind gusts, and distant thunder rumbles alongside raindrops on Arthur's hat.
+  [/list]
+[*][b]Player LEDs & Authentic Controller Speaker Sounds:[/b] The 5 LEDs under the touchpad show remaining ammo, flash your health when it changes, or sweep like police lights when wanted. The controller speaker plays genuine in-game RDR2 sounds for holstering, the lasso, bow creaks, reloads, blades, wheel ticks, and Dead Eye marks (and stays 100% muted when switched off).
+[*][b]Reliability & Polish:[/b] Clean controller shutdown when exiting RDR2 (lightbar & LEDs turn off instead of staying lit), crash-free ScriptHookRDR2 V2 save/load reloads, drift-free gyro aiming, relaxed silent triggers in menus and loading screens, and built-in PlayStation button prompts.
 [/list]
 
-[size=4][b]Haptics[/b][/size]
+---
+
+[size=4][b]Core Features[/b][/size]
+
+[size=3][b]Adaptive Triggers[/b][/size]
 [list]
-[*]Hoofbeats from the real hooves at every gait, on the real ground material (mud, gravel, wood, grass, snow...)
-[*]Arthur's footsteps from his real feet, landings, ledge grabs, doors, drawing and holstering
-[*]Hits from their direction, nearby gunfire, heartbeat, shivers
-[*]Getting on and off a horse or a wagon, the horse landing a jump, passing trains, hail, storm gusts and thunder
-[*]Honor going up or down, bites / sips / puffs, gun cleaning, brushing the horse, skinning, herbs, bathing
-[*]Five finger fillet, poker, blackjack, dominoes
-[*]Gun shots built from each gun's own recordings - the game's sounds, or your sound mod's if you use one
+[*]Every weapon has its own take-up, wall, and crisp break — the shot fires right on the break
+[*]Manual single-action cocking / cycling on R2 (aimed single-handed & longarms), with automatic cycling when hip-firing or dual-wielding
+[*]Dirty guns feel stiff and rough (and can slip); cold and exhaustion add trigger tremor; stronger ammo kicks harder
+[*]Dead Eye ticks on every painted target and kicks on every shot of the volley
+[*]Fishing carries real line tension on L2 (straining before the line snaps) and cast weight on R2
+[*]Quick-Draw R2 duel tension when holstered on foot; weapon wheel clicks like a selector switch
 [/list]
 
-[size=4][b]Dialogue haptics (experimental)[/b][/size]
-Feel the voices: every spoken line in your hands - the speaker's own voice, its rhythm and tone, from the side they
-stand on. In cutscenes and in conversations out in the world. Off by default: turn on [b]Dialogue Haptics[/b] on the
-DualSense settings page. If you feel a line before you hear it, raise [b]TV / Headphone Delay[/b] (Auto already knows
-Bluetooth headphones).
+[size=3][b]Voice-Coil Haptics[/b][/size]
+[list]
+[*]Real hooves on 9 distinct surfaces (mud, gravel, wood, grass, snow, water, sand...) + Arthur's real footsteps & landings
+[*]Directional bullet impacts, nearby gunfire, low-health & wanted heartbeat, shivering cold, explosions, rain/hail/storms/thunder
+[*]Boat rowing & waves, passing trains, spooked horses, wagon ruts & braking, camp chores, cleaning guns, brushing horses, skinning, bathing, herb plucking, and table games (poker, blackjack, dominoes, five finger fillet)
+[*]Gunshots shaped from the game's own sound recordings (also works with weapon sound mods)
+[/list]
 
-[size=4][b]Lightbar, LEDs, speaker[/b][/size]
-Muzzle flash, hits, Dead Eye glow, lantern flicker, wanted, low health, honor; player LEDs show the rounds
-left or your health, and sweep like a police light while you're wanted; the game's own holster, lasso, bow and
-blade sounds from the controller speaker (off by default).
+[size=3][b]Lightbar, LEDs, Speaker & Touchpad[/b][/size]
+[list]
+[*]Lightbar reacts to gunfire flashes, hits, Dead Eye, Eagle Eye, lit fuses, lanterns, wanted police lights, low health, honor changes, and time of day — and turns cleanly off when exiting the game
+[*]5 Player LEDs show clip ammo, health updates, or wanted sweeps
+[*]Controller speaker (off by default, USB only) plays genuine RDR2 holster, lasso, bow, reload, blade, and Dead Eye sounds
+[*]Touchpad Click, 4 Swipes, and Two-Finger Tap can be freely assigned in the pause menu
+[/list]
 
-[size=4][b]Settings in the game's own menu[/b][/size]
-Pause > Settings > Controls > Controller > [b]DualSense[/b] - a real page of the game's Settings with every
-setting of the mod, changed with left / right like the game's own options. Changes apply when you close the menu.
+[size=3][b]In-Game Settings & PlayStation Prompts[/b][/size]
+[list]
+[*]63 settings organized into 7 categories right in [b]Pause > Settings > Controls > Controller > DualSense[/b] (EN, DE, FR, ES, IT, PT, PL, RU, plus English fallback)
+[*]PlayStation button icons & controller graphic included using Rockstar's own art (no extra PS icon mod required)
+[/list]
 
-[size=4][b]PlayStation buttons[/b][/size]
-The game's prompts and controller picture show PlayStation buttons instead of Xbox ones - Rockstar's own art, no extra mod needed.
+[size=3][b]Dialogue Haptics (Experimental) & Microphone (Beta)[/b][/size]
+[list]
+[*][b]Dialogue Haptics[/b] (off by default): Feel every spoken line in your hands from the speaker's direction in cutscenes or across the world, with adjustable TV/headphone delay sync
+[*][b]Microphone[/b] (off by default): Whistle into the controller mic to call your horse, or use voice commands ([i]"chao"[/i] to greet, [i]"easy"[/i] to calm your horse)
+[/list]
 
-[size=4][b]Microphone (beta)[/b][/size]
-Off by default and still in testing: whistle into the controller to call your horse, plus a few voice
-commands. Turn it on under Settings > Controls > Controller > DualSense.
+---
 
 [size=4][b]Requirements[/b][/size]
 [list]
-[*][url=https://www.dev-c.com/rdr2/scripthookrdr2/]Script Hook RDR2[/url] with an ASI loader (dinput8.dll or version.dll)
-[*]DualSense on a USB cable or Bluetooth (Bluetooth: no controller speaker / microphone)
-[*]DSX / DS4Windows closed, Steam Input OFF for RDR2
-[*]Story mode only
-[*]For the settings page and PlayStation buttons: Lenny's Mod Loader (LML, from rdr2mods.com); any game language (page texts are
-English) - without LML, settings are in DualSenseRDR2.ini
-[*]For the voice commands (beta): Windows' English (US) speech recognition (add it under Settings > Time & language >
-Speech on a non-English Windows); the whistle works without it
+[*][url=https://www.dev-c.com/rdr2/scripthookrdr2/]Script Hook RDR2[/url] + an ASI loader ([code]dinput8.dll[/code] or [code]version.dll[/code])
+[*]A DualSense controller via USB cable or Bluetooth (over Bluetooth everything works except the controller's built-in speaker and mic)
+[*]Close DSX / DS4Windows and disable [b]Steam Input[/b] for RDR2 ([i]Steam > RDR2 > Properties > Controller > Disable Steam Input[/i])
+[*]Remove other DualSense mods (e.g., DualSenseHaptics.asi, NodixDualSense.asi) and other PlayStation icon mods that replace [code]startup_data.rpf[/code]
+[*][b]Lenny's Mod Loader (LML)[/b] for the in-game Settings menu and PlayStation button prompts (without LML, everything else still works via [code]DualSenseRDR2.ini[/code])
+[*]Story mode only — move mod files out before playing Red Dead Online
 [/list]
 
-[size=4][b]Install[/b][/size]
-Manual install: copy everything from the zip into the game folder - the one with RDR2.exe in it, not a
-subfolder: DualSenseRDR2.asi, the DualSenseRDR2 folder and the lml folder (merges into Lenny's Mod Loader).
-Remove other DualSense mods. Settings are in the game's menu (see above) and in DualSenseRDR2.ini (created on
-first start, F9 reloads it in game). To update, copy the new files over the old ones - your ini is kept.
+[size=4][b]Installation & Updating[/b][/size]
+Extract everything from the zip directly into your main RDR2 folder (where [code]RDR2.exe[/code] is located):
+[code]DualSenseRDR2.asi
+DualSenseRDR2\   (DualSenseCore.dll, weapons.json, haptics.json, translations.json, etc.)
+lml\             (merges into your LML folder: lml\DualSenseRDR2 and lml\replace\...)[/code]
+To update from an older version, simply overwrite the files — your [code]DualSenseRDR2.ini[/code] is preserved. Press [b]F9[/b] or hold the PS button for 1 second to reload settings in-game.
 
-[size=4][b]Red Dead Online[/b][/size]
-Story mode only. Before going Online, move the mod out of the game folder together with Script Hook, the ASI
-loader and LML (as for any mod), and back for story mode. The mod changes none of the game's own files.
+[size=4][b]Credits & Source Code[/b][/size]
+[list]
+[*]Original mod & core architecture by [b]OldKrab[/b] ([url=https://github.com/OldKrab/rdr2-dualsense]GitHub[/url] / [url=https://www.nexusmods.com/reddeadredemption2/mods/11444]Nexus Mods[/url])
+[*]Community Edition updates & maintenance by [b]TochaRude[/b] (with the help of Antigravity) — MIT open source on [url=https://github.com/TochaRude/rdr2-dualsense]GitHub[/url]
+[*]Bluetooth haptics format thanks to [url=https://apps.sdore.me/SAxense]SAxense[/url]
+[*]Russian localization review by a community tester
+[/list]
 
-[size=4][b]Open source[/b][/size]
-MIT licensed - source: https://github.com/OldKrab/rdr2-dualsense
-Haptics over Bluetooth thanks to SAxense: https://apps.sdore.me/SAxense
-Bow, lasso, fists, horse and wagon mounting, trains, weather and the player LED modes in 1.4.0 by TochaRude.
-
---- CHANGELOG 1.4.0 (the file upload's changelog field, one line each) ---
-New, from TochaRude: punches, blocks and hits in the triggers, a heavier blow for a knockout
-The bow gets heavier as you draw it, creaks and strains; the lasso stiffens both triggers while you hold someone; the fishing cast loads up on R2
-A thump when you get on or off a horse or a wagon and when the horse lands a jump; passing trains; hail, storm gusts and thunder; carrying a body makes every step heavier
-Player LEDs: Auto (rounds while armed, your health when it changes), Rounds, Health or Off - and a police sweep while you're wanted
-Sounds from the Controller: the game's own sounds for the lasso, the bow and blades; Off now mutes the speaker completely
-Game Sounds and Player LEDs are on the settings page; Rain is now Weather
-Fixed: Dead Eye marks tick; no wagon ruts in boats; triggers stay slack in the pause menu; the whistle no longer answers Arthur's own whistle; the shot point stops jumping between two places
+--- CHANGELOG 2.0.0 (for Nexus file changelog box, concise) ---
+First full Community Edition release (continuing OldKrab's mod with permission):
+- Expanded in-game DualSense menu to 63 options in 8 languages (EN/DE/FR/ES/IT/PT/PL/RU, English fallback) + global Trigger Strength slider (0-200%) + 6 Touchpad gestures
+- Added Bow progressive draw, Dual-Trigger Lasso struggle, Fishing cast load, Fists/Melee triggers, Quick-Draw R2 tension, full-travel lever/bolt/pump cycling, and 93-weapon support
+- Added Eagle Eye glow & chime, lit dynamite/fire-bottle fuse crackle & flicker, progressive gun cleaning, boat rowing & waves, spooked horses, wagon braking, mounting, herb plucking, body carrying, trains, hail/storms/thunder, and genuine RDR2 audio-based haptics/speaker sounds
+- Added Player LED modes (Auto/Ammo/Health/Wanted police sweep), ScriptHookRDR2 V2 save-load stability, drift-free gyro calibration, and clean DualSense reset when exiting the game

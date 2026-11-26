@@ -1207,8 +1207,40 @@ int run_selftests(const fs::path& data) {
                     if (resolve_translation(dict, k, "__MISSING__") == "__MISSING__") ++missing;
                 CHECK(missing == 0, (std::string("translations.json has complete key coverage for ") + code).c_str());
             }
+            if (tr.is_object() && tr.contains("ru") && tr["ru"].is_object()) {
+                const auto& ru = tr["ru"];
+                CHECK(ru.value("DS_TRIGGERS_KICK", "") == "\xD0\x9E\xD1\x82\xD0\xB4\xD0\xB0\xD1\x87\xD0\xB0 \xD1\x82\xD1\x80\xD0\xB8\xD0\xB3\xD0\xB3\xD0\xB5\xD1\x80\xD0\xBE\xD0\xB2" &&
+                          ru.value("DS_TRIGGERS_FANNING", "") == "\xD0\xA1\xD1\x82\xD1\x80\xD0\xB5\xD0\xBB\xD1\x8C\xD0\xB1\xD0\xB0 \xD0\xBE\xD1\x82 \xD0\xB1\xD0\xB5\xD0\xB4\xD1\x80\xD0\xB0 (\xD0\xA4\xD0\xB0\xD0\xBD\xD0\xBD\xD0\xB8\xD0\xBD\xD0\xB3)" &&
+                          ru.value("DS_HAPTICS_BLUETOOTH", "") == "HD-\xD0\xB2\xD0\xB8\xD0\xB1\xD1\x80\xD0\xB0\xD1\x86\xD0\xB8\xD1\x8F \xD0\xBF\xD0\xBE Bluetooth" &&
+                          ru.value("DS_HAPTICS_TABLES_DESC", "") == "\xD0\x98\xD0\xB3\xD1\x80\xD0\xB0 \xD0\xB2 \xD0\xBF\xD1\x8F\xD1\x82\xD1\x8C \xD0\xBF\xD0\xB0\xD0\xBB\xD1\x8C\xD1\x86\xD0\xB5\xD0\xB2, \xD0\xBF\xD0\xBE\xD0\xBA\xD0\xB5\xD1\x80, \xD0\xB1\xD0\xBB\xD1\x8D\xD0\xBA\xD0\xB4\xD0\xB6\xD0\xB5\xD0\xBA \xD0\xB8 \xD0\xB4\xD0\xBE\xD0\xBC\xD0\xB8\xD0\xBD\xD0\xBE.",
+                      "translations.json uses native-reviewed Russian localization strings");
+            }
             CHECK(resolve_translation({}, "DS_TRIGGERS_ENABLED", "Adaptive Triggers") == "Adaptive Triggers",
                   "missing/unsupported language resolves directly to English fallback");
+        }
+
+        // DualSense exit reset clears triggers, rumble, lightbar, player LEDs, mute LED & speaker route
+        {
+            DualSense ds_enc;
+            uint8_t p_enc[47]{};
+            ds_enc.encode_payload(DualSense::reset_output(), p_enc);
+            const auto off_blk = fx::off();
+            CHECK(std::memcmp(p_enc + 10, off_blk.data(), 11) == 0 &&
+                      std::memcmp(p_enc + 21, off_blk.data(), 11) == 0 &&
+                      (p_enc[0] & 0x0F) == 0x0F && p_enc[2] == 0 && p_enc[3] == 0 &&
+                      (p_enc[1] & 0x15) == 0x15 && p_enc[8] == 0 && p_enc[43] == 0 &&
+                      p_enc[44] == 0 && p_enc[45] == 0 && p_enc[46] == 0,
+                  "reset_output clears triggers, rumble, lightbar, player LEDs, and mute LED");
+
+            uint8_t p_usb[47]{}, p_bt[47]{};
+            DualSense::build_reset_payload(p_usb, true, true);
+            DualSense::build_reset_payload(p_bt, false, false);
+            CHECK((p_usb[0] & 0xA0) == 0xA0 && p_usb[5] == 0 && p_usb[7] == 0 &&
+                      (p_usb[38] & 0x06) == 0x06 && p_usb[41] == 0x02,
+                  "build_reset_payload forces USB speaker mute and lightbar release when requested");
+            CHECK((p_bt[0] & 0xA0) == 0 && (p_bt[38] & 0x06) == 0x04 && p_bt[41] == 0,
+                  "build_reset_payload omits USB audio routing and lightbar release when not needed");
+            ds_enc.reset_on_exit();  // safe no-op without open handle
         }
 
         // In-game Triggers.Strength + Touchpad gesture rows

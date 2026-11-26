@@ -28,11 +28,14 @@ fs::path module_dir() {
 
 static std::atomic<int> g_script_starts{0};
 static std::atomic<bool> g_script_reloaded{false};
+static std::atomic<bool> g_core_ready{false};
 
 // Controller, audio and the XInput hook start right away (menus work too);
 // game state comes from the ScriptHook script once a save is loaded.
 static DWORD WINAPI boot_thread(LPVOID) {
     try {
+        (void)dsr2::core();
+        g_core_ready.store(true, std::memory_order_release);
         dsr2::core().init(true);
         if (dsr2::config().flag("General", "Probes", false)) dsr2::io_probe_start();   // research: which audio files the game reads
     } catch (const std::exception& e) {
@@ -81,8 +84,11 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
         else LOGE("boot thread creation failed (%lu)", GetLastError());
         dsr2::text_inject_start();       // our Settings texts, in the game's own string table (even if init fails)
     } else if (reason == DLL_PROCESS_DETACH) {
-        // Nothing is stopped here: joining our threads under the loader lock would hang (a thread can't finish
-        // exiting without that lock). On process exit Windows ends them anyway.
+        // Under the loader lock we must never lock mutexes or join threads, so do a lock-free final HID reset
+        // and close the controller handle directly to clear lightbar, LEDs, triggers, rumble, and speaker route.
+        if (g_core_ready.load(std::memory_order_acquire)) {
+            dsr2::core().pad().reset_on_exit();
+        }
     }
     return TRUE;
 }

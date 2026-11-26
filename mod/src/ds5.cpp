@@ -15,6 +15,7 @@ static constexpr uint16_t kDualSense = 0x0CE6, kDualSenseEdge = 0x0DF2;
 
 static uint32_t crc32_table[256];
 static std::once_flag crc_once;
+static std::atomic<bool> crc_ready{false};
 static void crc_init() {
     std::call_once(crc_once, [] {
         for (uint32_t i = 0; i < 256; ++i) {
@@ -22,10 +23,11 @@ static void crc_init() {
             for (int k = 0; k < 8; ++k) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
             crc32_table[i] = c;
         }
+        crc_ready.store(true, std::memory_order_release);
     });
 }
 static uint32_t crc32(const uint8_t* d, size_t n, uint32_t crc = 0xFFFFFFFFu) {
-    crc_init();
+    if (!crc_ready.load(std::memory_order_acquire)) crc_init();
     for (size_t i = 0; i < n; ++i) crc = crc32_table[(crc ^ d[i]) & 0xFF] ^ (crc >> 8);
     return crc;
 }
@@ -47,6 +49,8 @@ bool DualSense::start(Handler h) {
     read_ev_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     write_ev_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     hap_ev_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    HANDLE exit_ev = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    exit_ev_.store(exit_ev, std::memory_order_release);
     thread_ = std::thread([this] { loop(); });
     return true;
 }
@@ -57,6 +61,8 @@ void DualSense::stop() {
     if (read_ev_) CloseHandle(read_ev_);
     if (write_ev_) CloseHandle(write_ev_);
     if (hap_ev_) CloseHandle(hap_ev_);
+    HANDLE exit_ev = exit_ev_.exchange(nullptr, std::memory_order_acq_rel);
+    if (exit_ev) CloseHandle(exit_ev);
     read_ev_ = write_ev_ = hap_ev_ = nullptr;
 }
 
@@ -92,7 +98,7 @@ void DualSense::parse_calibration(const uint8_t* feat) {
 }
 
 bool DualSense::open() {
-    routed_ = -1;                             // a (re)connected controller starts on the headphone jack again
+    routed_.store(-1, std::memory_order_release);     // a (re)connected controller starts on the headphone jack again
     headphones_ = false;
     last_ = InputState{};
     GUID hid;
@@ -133,14 +139,10 @@ bool DualSense::open() {
         HANDLE h = CreateFileW(c.path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                                OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
         if (h == INVALID_HANDLE_VALUE) continue;
-        {
-            std::lock_guard<std::mutex> l(dev_mu_);
-            dev_ = h;
-            name_ = std::string("DualSense ") + (c.usb ? "USB" : "Bluetooth");
-        }
         usb_ = c.usb;
         in_len_ = c.in;
         out_len_ = c.out;
+        raw_out_len_.store(c.out, std::memory_order_release);
         write_buf_.assign(std::max<size_t>(out_len_, c.usb ? 48 : 78), 0);
         hap_buf_.assign(std::max<size_t>(out_len_, 142), 0);
         gyro_cal_ = GyroCal{};
@@ -155,8 +157,14 @@ bool DualSense::open() {
                 if (HidD_GetFeature(h, feat41, 41)) parse_calibration(feat41);
             }
         }
-        lightbar_released_ = false;
+        lightbar_released_.store(false, std::memory_order_release);
         last_payload_.clear();
+        {
+            std::lock_guard<std::mutex> l(dev_mu_);
+            dev_ = h;
+            raw_dev_.store(h, std::memory_order_release);
+            name_ = std::string("DualSense ") + (c.usb ? "USB" : "Bluetooth");
+        }
         LOGI("controller: %s (in %zu, out %zu bytes%s)", name().c_str(), in_len_, out_len_,
              gyro_cal_.valid ? ", gyro cal ok" : "");
         return true;
@@ -172,14 +180,17 @@ void DualSense::close() {
         h = dev_;
     }
     if (h != INVALID_HANDLE_VALUE) {
-        OutputState off;
-        write(off, true);
+        write(reset_output(), true);
         std::lock_guard<std::mutex> l(dev_mu_);
-        if (dev_ != INVALID_HANDLE_VALUE) {
+        HANDLE owned = raw_dev_.exchange(INVALID_HANDLE_VALUE, std::memory_order_acq_rel);
+        if (owned != INVALID_HANDLE_VALUE) {
+            CancelIoEx(owned, nullptr);
+            CloseHandle(owned);
+        } else if (dev_ != INVALID_HANDLE_VALUE) {
             CancelIoEx(dev_, nullptr);
             CloseHandle(dev_);
-            dev_ = INVALID_HANDLE_VALUE;
         }
+        dev_ = INVALID_HANDLE_VALUE;
     }
 }
 
@@ -238,7 +249,7 @@ void DualSense::build_payload(const OutputState& o, uint8_t* p) {
     }
     if (o.has_lightbar) {
         p[1] |= 0x04;
-        if (!lightbar_released_) {
+        if (!lightbar_released_.load(std::memory_order_acquire)) {
             p[38] |= 0x02;
             p[41] = 0x02;
         }
@@ -254,7 +265,7 @@ void DualSense::build_payload(const OutputState& o, uint8_t* p) {
     // Headphones: path 0 (left/right -> jack).
     routing_ = -1;
     const int want_route = headphones_ ? 1 : (o.speaker_enabled ? 2 : 0);
-    if (usb_ && want_route != routed_) {
+    if (usb_ && want_route != routed_.load(std::memory_order_acquire)) {
         routing_ = want_route;
         p[0] |= 0x80;                         // audio control
         if (headphones_) {
@@ -273,6 +284,99 @@ void DualSense::build_payload(const OutputState& o, uint8_t* p) {
     }
 }
 
+OutputState DualSense::reset_output() {
+    OutputState off;
+    off.r2 = fx::off();
+    off.l2 = fx::off();
+    off.has_rumble = true;
+    off.rumble_left = 0;
+    off.rumble_right = 0;
+    off.has_lightbar = true;
+    off.r = 0; off.g = 0; off.b = 0;
+    off.player_leds = 0;
+    off.mute_led = 0;
+    off.speaker_enabled = false;
+    return off;
+}
+
+void DualSense::build_reset_payload(uint8_t* p, bool force_usb_mute, bool release_lightbar) {
+    std::memset(p, 0, 47);
+    p[0] = 0x01 | 0x02 | 0x04 | 0x08;         // rumble (0,0) + both trigger effects (off)
+    p[1] = 0x01 | 0x04 | 0x10 | 0x40;         // mute LED (0) + lightbar (0,0,0) + player LEDs (0) + motor power
+    p[38] = 0x04;                             // enable rumble motors (0,0)
+    if (release_lightbar) {
+        p[38] |= 0x02;
+        p[41] = 0x02;
+    }
+    const fx::Block off = fx::off();
+    std::memcpy(p + 10, off.data(), 11);
+    std::memcpy(p + 21, off.data(), 11);
+    if (force_usb_mute) {
+        p[0] |= 0x80 | 0x20;                  // audio control + speaker volume
+        p[5] = 0x00;                          // hardware speaker mute
+        p[7] = 0x00;                          // disable internal speaker path
+    }
+}
+
+void DualSense::reset_on_exit() noexcept {
+    running_.store(false, std::memory_order_release);
+    connected_.store(false, std::memory_order_release);
+    HANDLE h = raw_dev_.exchange(INVALID_HANDLE_VALUE, std::memory_order_acq_rel);
+    if (h == INVALID_HANDLE_VALUE) return;
+
+    // Abort any pending overlapped HID reads/writes stopped when threads exited, then send a lock-free reset.
+    CancelIoEx(h, nullptr);
+
+    const bool is_usb = usb_.load(std::memory_order_acquire);
+    const bool mute_spk = is_usb && routed_.load(std::memory_order_acquire) == 2;
+    const bool release_lb = !lightbar_released_.load(std::memory_order_acquire);
+    uint8_t payload[47];
+    build_reset_payload(payload, mute_spk, release_lb);
+
+    const size_t min_len = is_usb ? 48 : 78;
+    const size_t out_hint = raw_out_len_.load(std::memory_order_acquire);
+    uint8_t rep[256];
+    const size_t want = std::min(sizeof(rep), std::max(out_hint, min_len));
+    HANDLE ev = exit_ev_.load(std::memory_order_acquire);
+
+    auto send_once = [&]() {
+        std::memset(rep, 0, want);
+        if (is_usb) {
+            rep[0] = 0x02;
+            std::memcpy(rep + 1, payload, 47);
+        } else {
+            const uint8_t seq = bt_seq_.fetch_add(1, std::memory_order_relaxed) & 0x0F;
+            rep[0] = 0x31;
+            rep[1] = uint8_t(seq << 4);
+            rep[2] = 0x10;
+            std::memcpy(rep + 3, payload, 47);
+            uint32_t crc = bt_crc32(rep, 74);
+            std::memcpy(rep + 74, &crc, 4);
+        }
+        OVERLAPPED ov{};
+        ov.hEvent = ev;
+        if (ev) ResetEvent(ev);
+        DWORD n = 0;
+        BOOL ok = WriteFile(h, rep, DWORD(want), &n, &ov);
+        if (!ok && GetLastError() == ERROR_IO_PENDING) {
+            HANDLE wait_h = ev ? ev : h;
+            if (WaitForSingleObject(wait_h, 80) != WAIT_OBJECT_0) {
+                CancelIoEx(h, &ov);
+                GetOverlappedResult(h, &ov, &n, TRUE);
+            } else {
+                GetOverlappedResult(h, &ov, &n, FALSE);
+            }
+        }
+    };
+
+    send_once();
+    if (!is_usb) {
+        Sleep(15);
+        send_once();
+    }
+    CloseHandle(h);
+}
+
 bool DualSense::write(const OutputState& o, bool force) {
     uint8_t payload[47];
     build_payload(o, payload);
@@ -288,10 +392,10 @@ bool DualSense::write(const OutputState& o, bool force) {
         std::memcpy(rep.data() + 1, payload, 47);
     } else {
         rep[0] = 0x31;
-        rep[1] = uint8_t((bt_seq_ & 0x0F) << 4);
+        const uint8_t seq = bt_seq_.fetch_add(1, std::memory_order_relaxed) & 0x0F;
+        rep[1] = uint8_t(seq << 4);
         rep[2] = 0x10;
         std::memcpy(rep.data() + 3, payload, 47);
-        bt_seq_ = uint8_t((bt_seq_ + 1) & 0x0F);
         uint32_t crc = bt_crc32(rep.data(), 74);
         std::memcpy(rep.data() + 74, &crc, 4);
     }
@@ -309,10 +413,11 @@ bool DualSense::write(const OutputState& o, bool force) {
         ok = GetOverlappedResult(dev_, &ov, &n, FALSE);
     }
     if (!ok) return false;
-    if (o.has_lightbar) lightbar_released_ = true;
+    if (o.has_lightbar) lightbar_released_.store(true, std::memory_order_release);
     if (routing_ >= 0) {
-        routed_ = routing_;
-        LOGI("controller audio: %s", routed_ == 1 ? "headphone jack" : routed_ == 2 ? "built-in speaker" : "built-in speaker muted");
+        const int r = routing_;
+        routed_.store(r, std::memory_order_release);
+        LOGI("controller audio: %s", r == 1 ? "headphone jack" : r == 2 ? "built-in speaker" : "built-in speaker muted");
     }
     last_payload_.assign(payload, payload + 47);
     return true;
