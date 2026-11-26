@@ -16,11 +16,11 @@ cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=g++   (CLion's bundled MinGW, 
 cmake --build build
 build\dsr2_test.exe --selftest                          offline checks (166)
 build\dsr2_test.exe WEAPON_REVOLVER_CATTLEMAN 30        the whole mod without the game, real controller
-powershell -ExecutionPolicy Bypass -File install.ps1    copies .asi + data (from tools/trigger_lab/data)
-powershell -ExecutionPolicy Bypass -File uninstall.ps1  removes it and restores the mods install moved away
+powershell -ExecutionPolicy Bypass -File ..\tools\dev\make_release.ps1  builds release\DualSenseRDR2-v2.0.0.zip
 ```
-Tune weapons, record calibration and label sounds in the Trigger Lab (`tools/trigger_lab`), then run
-`install.ps1` again - it copies the lab's data into `<game>\DualSenseRDR2\`.
+Tune weapons, record calibration and label sounds in the Trigger Lab (`tools/trigger_lab`), rebuild via
+`tools/dev/make_release.ps1`, and extract the contents of `release\DualSenseRDR2-v<version>.zip` directly into the
+RDR2 game folder (next to `RDR2.exe`).
 
 ## In game
 | Feature | How it works |

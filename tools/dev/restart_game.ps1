@@ -1,7 +1,6 @@
-# Closes RDR2, installs the freshly built mod, starts the game again and checks that it really started.
+# Closes RDR2, starts the game again and checks that it really started.
 # Steam ignores a launch while it still thinks the game runs (the Rockstar launcher takes a while to exit),
 # so: wait until everything is gone, give Steam a few seconds, launch, verify, retry once.
-param([switch]$NoInstall)
 $names = "RDR2", "PlayRDR2", "Launcher", "RockstarService", "RockstarErrorHandler", "SocialClubHelper"
 # (the quit confirmation is answered with Enter below; the game saves nothing on quit, so only quit after saving)
 function Running { Get-Process -Name $names -ErrorAction SilentlyContinue }
@@ -22,10 +21,6 @@ $t = 0
 while ((Running) -and $t -lt 60) { Start-Sleep -Seconds 1; $t++ }
 if (Running) { Stop-Process -Name $names -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2 }
 "game closed after $t s"
-
-if (-not $NoInstall) {
-    & (Join-Path $PSScriptRoot "..\..\mod\install.ps1") | Select-String "Installed"
-}
 
 Start-Sleep -Seconds 20                   # let Steam notice the game is gone and sync the saves
 for ($try = 1; $try -le 2; $try++) {
