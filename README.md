@@ -6,11 +6,11 @@ dialogue you can feel (experimental), lightbar, player LEDs, touchpad gestures, 
 (ScriptHookRDR2 `.asi` mod).
 
 > **About This Fork / Continuation**  
-> This repository began as an independent community fork of [OldKrab/rdr2-dualsense](https://github.com/OldKrab/rdr2-dualsense) ([Nexus Mods](https://www.nexusmods.com/reddeadredemption2/mods/11444)), originally created by **OldKrab**.  
-> With **OldKrab's blessing**, development and Nexus Mods releases are now continued independently here by **TochaRude** (built with the help of **Antigravity**). Full credit for the original architecture and core mod belongs to **OldKrab**.  
-> **Testers and feedback are very welcome!** Please report bugs, controller quirks, or suggestions via [GitHub Issues](https://github.com/TochaRude/rdr2-dualsense/issues).
+> This repository began as an independent community fork of [OldKrab/rdr2-dualsense](https://github.com/OldKrab/rdr2-dualsense) ([original Nexus Mods page](https://www.nexusmods.com/reddeadredemption2/mods/11444)), originally created by **OldKrab**.  
+> With **OldKrab's blessing**, development and the new **[DualSense for RDR2 - Reworked](https://www.nexusmods.com/reddeadredemption2/mods/11933)** Nexus Mods release are now continued independently here by **TochaRude** (built with the help of **Antigravity**). Full credit for the original architecture and core mod belongs to **OldKrab**.  
+> **Testers and feedback are very welcome!** Please report bugs, controller quirks, or suggestions via [GitHub Issues](https://github.com/TochaRude/rdr2-dualsense/issues) or [Nexus Mods](https://www.nexusmods.com/reddeadredemption2/mods/11933).
 
-Players: download the latest release from [GitHub Releases](https://github.com/TochaRude/rdr2-dualsense/releases)
+Players: download the latest release from **[Nexus Mods](https://www.nexusmods.com/reddeadredemption2/mods/11933)** or **[GitHub Releases](https://github.com/TochaRude/rdr2-dualsense/releases)**
 and follow the installation steps in `README.txt` inside the archive.
 
 ---

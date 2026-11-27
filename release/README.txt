@@ -9,18 +9,19 @@ the game is actually doing.
 REQUIREMENTS
 ------------
 - Red Dead Redemption 2 (PC, Steam / Rockstar / Epic), story mode
-- Script Hook RDR2 + an ASI loader (dinput8.dll from Script Hook, or version.dll - either works)
-  https://www.dev-c.com/rdr2/scripthookrdr2/
+- ScriptHookRDR2 V2 (recommended: https://www.nexusmods.com/reddeadredemption2/mods/1472) or classic
+  Script Hook RDR2 + an ASI loader (dinput8.dll or version.dll): https://www.dev-c.com/rdr2/scripthookrdr2/
 - A DualSense controller on a USB cable or Bluetooth (over Bluetooth everything but the controller's speaker
   and microphone). Plug it in before or after starting
   the game - both work.
 - Close DSX / DS4Windows, and turn Steam Input OFF for RDR2
   (Steam -> RDR2 -> Properties -> Controller -> Disable Steam Input)
 - Remove other DualSense mods (DualSenseHaptics.asi, NodixDualSense.asi ...) - they fight over the controller
-- For the settings page and PlayStation button icons: Lenny's Mod Loader (LML), already installed (its vfs.asi next
-  to RDR2.exe). Automatically translates into English, German, French, Spanish, Italian, Portuguese, Polish,
-  and Russian (falling back to English for other game languages). Without LML everything else works; you
-  change settings in DualSenseRDR2.ini instead.
+- For the settings page and PlayStation button icons: Lenny's Mod Loader (LML,
+  https://www.rdr2mods.com/downloads/rdr2/tools/76-lennys-mod-loader-rdr/), already installed (its vfs.asi
+  next to RDR2.exe). Automatically translates into English, German, French, Spanish, Italian, Portuguese,
+  Polish, and Russian (falling back to English for other game languages). Without LML everything else works;
+  you change settings in DualSenseRDR2.ini instead.
 - For voice commands: Windows' English (US) speech recognition. On a non-English Windows add it in
   Settings -> Time & language -> Speech. Without it voice commands are off; the whistle still works.
 
@@ -136,6 +137,7 @@ touchpad gestures, 93-weapon support, ScriptHookRDR2 V2 stability, and exit cont
 Game research: alloc8or's RDR3 native database, femga's rdr3_discoveries, Halen84 and others' decompiled
 script references. nlohmann/json (MIT). stb_vorbis by Sean Barrett (public domain). Script Hook RDR2 by
 Alexander Blade. Haptics over Bluetooth: the report format worked out by SAxense (https://apps.sdore.me/SAxense).
+Mod page (Nexus Mods): https://www.nexusmods.com/reddeadredemption2/mods/11933
 Source code (MIT): https://github.com/TochaRude/rdr2-dualsense
 
 
