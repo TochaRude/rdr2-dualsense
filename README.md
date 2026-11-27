@@ -1,34 +1,34 @@
-# DualSense for RDR2 (Community Fork)
+# DualSense for RDR2 (Community Edition)
 
 Full DualSense support for Red Dead Redemption 2 on PC — adaptive triggers per weapon, voice-coil haptics,
 dialogue you can feel (experimental), lightbar, player LEDs, touchpad gestures, controller speaker audio,
 8-language in-game settings menu, and microphone (beta), driven by what the game is actually doing
-(ScriptHookRDR2 `.asi` mod).
+(ScriptHookRDR2 `.asi` mod). Also includes an experimental DualShock 4 (PS4) build.
 
-> **About This Fork / Continuation**  
-> This repository began as an independent community fork of [OldKrab/rdr2-dualsense](https://github.com/OldKrab/rdr2-dualsense) ([original Nexus Mods page](https://www.nexusmods.com/reddeadredemption2/mods/11444)), originally created by **OldKrab**.  
-> With **OldKrab's blessing**, development and the new **[DualSense for RDR2 - Reworked](https://www.nexusmods.com/reddeadredemption2/mods/11933)** Nexus Mods release are now continued independently here by **TochaRude** (built with the help of **Antigravity**). Full credit for the original architecture and core mod belongs to **OldKrab**.  
+> **About This Project**  
+> This standalone repository is an independent continuation of [OldKrab/rdr2-dualsense](https://github.com/OldKrab/rdr2-dualsense) ([original Nexus Mods page](https://www.nexusmods.com/reddeadredemption2/mods/11444)), originally created by **OldKrab**.  
+> With **OldKrab's blessing**, development and the **[DualSense for RDR2 - Reworked](https://www.nexusmods.com/reddeadredemption2/mods/11933)** Nexus Mods release are maintained independently here by **TochaRude** (built with the help of **Antigravity**). Full credit for the original architecture and core mod goes to **OldKrab**.  
 > **Testers and feedback are very welcome!** Please report bugs, controller quirks, or suggestions via [GitHub Issues](https://github.com/TochaRude/rdr2-dualsense/issues) or [Nexus Mods](https://www.nexusmods.com/reddeadredemption2/mods/11933).
 
 Players: download the latest release from **[Nexus Mods](https://www.nexusmods.com/reddeadredemption2/mods/11933)** or **[GitHub Releases](https://github.com/TochaRude/rdr2-dualsense/releases)**
-and follow the installation steps in `README.txt` inside the archive.
+and follow the installation steps in `README.txt` (or `README-DS4.txt` for the experimental DS4 edition) inside the archive.
 
 ---
 
 ## Versioning
 
-Starting with **`v2.0.0`**, this repository publishes standalone releases directly from `main`:
-- **`v1.3.0-fork.1` – `v1.3.0-fork.3`**: Earlier community fork releases built on OldKrab's `v1.3.0`.
-- **`v1.4.0-fork.1-pre.1`** *(Pre-Release)*: Combined upstream `v1.4.0` (`24535bd`) with expanded 63-row 8-language settings UI, touchpad gestures, full-travel actions, 93-weapon coverage, world haptics, and `.awc` soundbank effects.
-- **`v2.0.1`**: Menu & exit controller LED shutoff (lightbar, player LEDs, and mute LED turn off cleanly in menus/exit without a companion process), pink-free Lightbar idle curve + custom color presets (`Color=auto|off|white|blue|cyan|green|gold|orange|red|purple|#RRGGBB`), Player LED brightness scaling & `MuteLed` control, and expanded Touchpad presets (Calm/Pat Horse `L3`, `L3+R3` Eagle Eye, Map, Satchel, Journal, Cinematic Camera, Long Whistle) with click-swipe suppression.
+This repository publishes standalone releases directly from `main`:
+- **`v2.0.1`**: Menu & exit controller LED shutoff (lightbar, player LEDs, and mute LED turn off cleanly in menus/exit without a companion process), pink-free Lightbar idle curve + custom color presets (`Color=auto|off|white|blue|cyan|green|gold|orange|red|purple|#RRGGBB`), Player LED brightness scaling & `MuteLed=auto|on|off` control, and expanded Touchpad presets (Calm/Pat Horse `L3`, `L3+R3` Eagle Eye, Map, Satchel, Journal, Cinematic Camera, Long Whistle) with click-swipe protection.
+- **`v2.0.1-ds4-experimental`** *(Experimental Pre-Release)*: Separate DualShock 4 (PS4 v1/v2 & Sony DS4 USB Wireless Adaptor) build over USB & Bluetooth with plug-and-play HID-to-XInput, full reactive Lightbar, 6 Touchpad gestures, experimental Gyro Aiming, 63-option 8-language menu, PlayStation prompts, and 186-recipe dual-rumble emulation (raw analog triggers; no PS5-only hardware features).
 - **`v2.0.0`**: First full standalone release on `main`, adding native-reviewed Russian localization, a clean DualSense hardware reset when quitting RDR2 (turning off lightbar, LEDs, triggers, rumble, speaker route, and releasing the HID handle cleanly), and updated end-user documentation.
+- **`v1.3.0-fork.1` – `v1.4.0-fork.1-pre.1`**: Earlier historical releases from when the repository was still attached as a fork of OldKrab's repo.
 
 ---
 
 ## Differences from the Original Mod
 
 ### 1. Expanded In-Game Settings Menu, 8 Languages & Touchpad Gestures
-- **Expanded In-Game DualSense Settings Page (`27 -> 63` options across `7` categories):** Rebuilt `startup_data.rpf` (`DUALSENSE_SETTINGS`) with live dependency bindings (`SHOW_IF` / `ACTIVE_IF`), adding a global **Trigger Strength** slider (`[Triggers] Strength`, `0–200%`) and a dedicated **Touchpad** category (`Click`, `SwipeUp`, `SwipeDown`, `SwipeLeft`, `SwipeRight`, `TwoFingerTap` across 15 presets: `Off`, Map/Camera, Whistle, Weapon Wheel, Eagle Eye, Pause, etc.).
+- **Expanded In-Game DualSense Settings Page (`27 -> 63` options across `7` categories):** Rebuilt `startup_data.rpf` (`DUALSENSE_SETTINGS`) with live dependency bindings (`SHOW_IF` / `ACTIVE_IF`), adding a global **Trigger Strength** slider (`[Triggers] Strength`, `0–200%`), an **Idle Lightbar Colour** selector (`[Lightbar] Color`), and a dedicated **Touchpad** category (`Click`, `SwipeUp`, `SwipeDown`, `SwipeLeft`, `SwipeRight`, `TwoFingerTap` across presets including `Calm / Pat Horse (L3)`, `Eagle Eye (L3+R3)`, `Map`, `Satchel`, `Journal`, `Cinematic Camera`, `Whistle`, `Long Whistle`, Weapon Wheel, Pause, etc., with click-swipe protection).
 - **8-Language In-Game UI with Automatic English Fallback (`translations.json`):** Out-of-the-box support for **English (`en`), German (`de`), French (`fr`), Spanish (`es`, Spain & LATAM), Italian (`it`), Portuguese (`pt`), Polish (`pl`), and Russian (`ru`)**, detected automatically via `GET_CURRENT_LANGUAGE` as well as on the title screen from RDR2's loaded `global.yldb` string table (optionally overridable via `[General] Language=auto|en|de|fr|es|it|pt|pl|ru`), with automatic **English** fallback for unsupported game languages.
 
 ### 2. Focused Controller Speaker Audio, Soundbank Haptics & True Hardware Mute (`[Speaker]`)
@@ -57,8 +57,9 @@ Starting with **`v2.0.0`**, this repository publishes standalone releases direct
 - **Event-Driven Herb Plucking (`pluck`):** Multi-stage stem-snap and root-pull tactile haptics triggered cleanly from herb loot events (`EVENT_CALCULATE_LOOT` / `EVENT_LOOT` `slot(29) != 0` with `1.8 s` debounce — no container/loot false positives).
 - **Nearby Moving Trains, Expanded Weather & Carrying Loads:** Directional ground rumble and rail clacks near moving trains (`train_pass`), hail/sleet (`hail_drop`), storm/blizzard wind gusts (`wind_gust` including `THUNDER`, `GROUNDBLIZZARD`, `WHITEOUT`), distant thunder (`thunder_roll`) via `GET_CURR_WEATHER_STATE`, deeper footsteps (`IS_PED_CARRYING_SOMETHING`), shoulder weight shifts (`carry_shift`), and subtle unarmed `L2`/`R2` grip weight (`!g.armed`).
 
-### 5. Player LEDs & Wanted System (`[Lightbar]`)
-- **On-Change Health Player LEDs (`PlayerLeds=auto|health|ammo|off`):** Displays remaining clip rounds when armed (`auto`), lights up the 5 Player LEDs for 3.5 seconds when Arthur's health changes by `>= 2%` while unarmed, and actively clears LEDs to `0` when set to `off` (and keeps disabled lightbar off after flashes).
+### 5. Player LEDs, Lightbar & Wanted System (`[Lightbar]`)
+- **Clean Menu & Exit Shutoff + Custom Idle Colours:** Lightbar, 5 Player LEDs, and the orange Mute LED automatically switch off in menus (Main Menu, Pause Menu, Loading screens) and on game exit without needing a companion watchdog. Includes a refined pink-free Time-of-Day curve, in-game `Idle Lightbar Colour` presets (`Time of Day`, `Off [Events Only]`, `White`, `Blue`, `Cyan`, `Green`, `Gold`, `Orange`, `Red`, `Purple`) plus custom `#RRGGBB` / `R,G,B` in `DualSenseRDR2.ini`, hardware brightness scaling for Player LEDs, flash suppression when `Enabled=0`, and `MuteLed=auto|on|off`.
+- **On-Change Health Player LEDs (`PlayerLeds=auto|health|ammo|off`):** Displays remaining clip rounds when armed (`auto`), lights up the 5 Player LEDs for 3.5 seconds when Arthur's health changes by `>= 2%` while unarmed, and actively clears LEDs to `0` when set to `off`.
 - **Wanted Police Sweep & Escalating Heartbeat:** Alternating police-light Player LED sweep, red/blue lightbar flashes, and a tension heartbeat that speeds up with `GET_WANTED_SCORE`.
 
 ### 6. Stability, Gyro/Camera & Hardware Fixes
@@ -77,15 +78,21 @@ Starting with **`v2.0.0`**, this repository publishes standalone releases direct
 | `tools/trigger_lab/` | Python lab to design and test trigger effects and haptic recipes outside the game; `data/` holds `weapons.json` (`93 weapons`), `haptics.json` (`186 recipes`), and `translations.json` (`8 languages`). |
 | `tools/awc/` | Game sound bank tools (AWC decoding, sound / material name recovery, speech voice table) and read-only live-memory research scripts. |
 | `tools/dev/` | Release script, ini updater, one-off patch scripts. |
-| `release/` | Player `README.txt` and mod page text. |
+| `release/` | Player `README.txt`, `README-DS4.txt`, and mod page text. |
 
 ## Build
 ```powershell
+# Standard DualSense (PS5) Edition
 cmake -S mod -B mod/build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build mod/build
 .\mod\build\dsr2_test.exe --selftest
 .\mod\build\test_reload\dsr2_reload_test.exe
 powershell -ExecutionPolicy Bypass -File tools/dev/make_release.ps1
+
+# Optional Experimental DualShock 4 (PS4) Edition
+cmake -S mod -B mod/build-ds4 -G Ninja -DCMAKE_BUILD_TYPE=Release -DDSR2_DS4_EXPERIMENTAL=ON
+cmake --build mod/build-ds4
+powershell -ExecutionPolicy Bypass -File tools/dev/make_release.ps1 -ExperimentalDS4
 ```
 
 ## License
