@@ -1,4 +1,4 @@
-DualSense for RDR2  v2.0.0  -  Community Edition (by OldKrab, continued by TochaRude)
+DualSense for RDR2  v2.0.1  -  Community Edition (by OldKrab, continued by TochaRude)
 =================================================================================
 
 Full DualSense support for Red Dead Redemption 2 on PC: adaptive triggers made per weapon,
@@ -143,6 +143,17 @@ Source code (MIT): https://github.com/TochaRude/rdr2-dualsense
 
 CHANGES
 -------
+2.0.1  - Menus & Game Exit: lightbar, player LEDs, and mute LED now switch off cleanly in menus
+         (Pause Menu, Main Menu, Loading screens), so quitting the game leaves the controller dark
+         without needing an extra background process.
+       - Lightbar & LEDs: added custom idle lightbar colour presets (Auto / Off / White / Blue /
+         Cyan / Green / Gold / Orange / Red / Purple, or any #RRGGBB in DualSenseRDR2.ini), fixed
+         pinkish daylight/twilight LED tint, added hardware brightness scaling for the 5 Player LEDs,
+         and added [Lightbar] MuteLed=auto|on|off (setting Lightbar Enabled=0 now disables all
+         lights including flashes and the mute LED by default).
+       - Touchpad Gestures: added dedicated presets for Calm / Pat Horse (L3), Eagle Eye (L3+R3),
+         Open Map, Open Satchel, Open Journal, Cinematic Camera, and Long Whistle across all
+         6 gestures, plus accidental-swipe suppression when clicking the touchpad.
 2.0.0  Community Edition release (superseding v1.3.0-fork.1..v1.3.0-fork.3 & v1.4.0-fork.1-pre.1):
        - Expanded in-game DualSense settings page (63 rows / 7 categories, rebuilt startup_data.rpf)
          including global Triggers.Strength (0-200%) and configurable Touchpad gestures.

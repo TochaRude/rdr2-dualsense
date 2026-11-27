@@ -86,6 +86,8 @@ std::string SettingsMenu::value_text(const MenuEntry& e, const Config& c) {
     }
     case MenuEntry::Choice: {
         std::string v = c.str(e.section, e.key, e.choices.empty() ? "" : e.choices[size_t(e.def)].value);
+        if (std::string(e.id) == "lightbar_tod" && c.str("Lightbar", "Color", "").empty() && !c.flag("Lightbar", "TimeOfDay", true))
+            v = "off";
         for (auto& o : e.choices)
             if (eq_ci(o.value, v) || (v.empty() && eq_ci(o.value, "OFF"))) return o.text;
         return v;
@@ -149,6 +151,8 @@ int SettingsMenu::page_value(const MenuEntry& e, const Config& c) {
     case MenuEntry::Choice: {
         if (e.choices.empty()) return 0;
         std::string v = c.str(e.section, e.key, e.choices[size_t(e.def)].value);
+        if (std::string(e.id) == "lightbar_tod" && c.str("Lightbar", "Color", "").empty() && !c.flag("Lightbar", "TimeOfDay", true))
+            v = "off";
         for (size_t k = 0; k < e.choices.size(); ++k)
             if (eq_ci(e.choices[k].value, v) || (v.empty() && eq_ci(e.choices[k].value, "OFF"))) return int(k);
         return int(e.def);

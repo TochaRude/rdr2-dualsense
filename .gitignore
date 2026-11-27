@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 tools/trigger_lab/logs/
 mod/build/
+mod/build-ds4/
 
 release/stage/
 release/*.zip

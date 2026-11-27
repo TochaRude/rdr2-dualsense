@@ -20,7 +20,11 @@ namespace dsr2 {
 
 namespace fs = std::filesystem;
 
-constexpr const char* kVersion = "2.0.0";
+#ifdef DSR2_DS4_EXPERIMENTAL
+constexpr const char* kVersion = "2.0.1-ds4-exp.1";
+#else
+constexpr const char* kVersion = "2.0.1";
+#endif
 constexpr float kPi = 3.14159265358979f;
 
 inline double now_s() {

@@ -2,14 +2,14 @@
 
 NAME:     DualSense for RDR2 - Reworked
 URL:      https://www.nexusmods.com/reddeadredemption2/mods/11933
-VERSION:  2.0.0
+VERSION:  2.0.1
 CATEGORY: Gameplay
 SUMMARY (short):
 Full PlayStation DualSense support for RDR2 (USB & Bluetooth): adaptive triggers for all 93 weapons, HD voice-coil haptics, dynamic lightbar & player LEDs, controller speaker, touchpad gestures, gyro aim, PlayStation icons, and a 63-option in-game menu in 8 languages. Reworked continuation of OldKrab's mod.
 
 --- DESCRIPTION ---
 
-[size=5][b]DualSense for RDR2 - Reworked (v2.0.0)[/b][/size]
+[size=5][b]DualSense for RDR2 - Reworked (v2.0.1)[/b][/size]
 
 [b]Complete PlayStation DualSense support for Red Dead Redemption 2 on PC — over USB or Bluetooth.[/b]
 Originally created by [b]OldKrab[/b] ([url=https://www.nexusmods.com/reddeadredemption2/mods/11444]original Nexus Mods page[/url]) and continued independently with OldKrab's blessing by [b]TochaRude[/b].
@@ -114,6 +114,11 @@ To update from an older version, simply copy the new files over the old ones —
 [*]Bluetooth haptics format thanks to [url=https://apps.sdore.me/SAxense]SAxense[/url]
 [*]Russian localization review by a community tester
 [/list]
+
+--- CHANGELOG 2.0.1 (for Nexus file changelog box, concise) ---
+- Clean controller LED shutoff in menus & on exit: lightbar, player LEDs, and mute LED now switch off in menus/exit without needing an extra background process.
+- Improved Lightbar & LED control: replaced the pinkish daylight tint with a neutral-warm curve, added Idle Lightbar Colour presets in the in-game menu (Time of Day, Off, White, Blue, Cyan, Green, Gold, Orange, Red, Purple, or custom #RRGGBB in DualSenseRDR2.ini), added Player LED brightness scaling, and added [Lightbar] MuteLed=auto|on|off (disabling the lightbar now also dims/disables LEDs cleanly).
+- Expanded Touchpad gestures: added Calm/Pat Horse (L3), Eagle Eye (L3+R3), Open Map, Open Satchel, Open Journal, Cinematic Camera, and Long Whistle shortcuts, plus click-swipe protection.
 
 --- CHANGELOG 2.0.0 (for Nexus file changelog box, concise) ---
 First standalone Reworked release (continuing OldKrab's mod with permission):

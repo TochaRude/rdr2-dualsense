@@ -1,19 +1,39 @@
-# Builds the release zip: release\DualSenseRDR2-v<version>.zip
+# Builds the release zip: release\DualSenseRDR2-v<version>.zip (or -ExperimentalDS4 for DS4 experimental zip)
 #   DualSenseRDR2.asi, DualSenseRDR2\ (DualSenseCore.dll, weapons, haptics, sound labels, speech voices),
 #   lml\ (the Settings page), README.txt, LICENSE.txt
 # Your personal calibration.json is NOT included (players get estimated zones + auto-align).
+param(
+    [switch]$ExperimentalDS4
+)
 $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
-$version = (Select-String -Path "$root\mod\src\common.h" -Pattern 'kVersion = "([^"]+)"').Matches[0].Groups[1].Value
-$asi = "$root\mod\build\DualSenseRDR2.asi"
-$coreDll = "$root\mod\build\DualSenseCore.dll"
-if (-not (Test-Path $asi) -or -not (Test-Path $coreDll)) { throw "build the mod first (DualSenseRDR2.asi + DualSenseCore.dll)" }
-$testExe = "$root\mod\build\dsr2_test.exe"
+$commonRaw = Get-Content "$root\mod\src\common.h" -Raw
+if ($ExperimentalDS4) {
+    $m = [regex]::Match($commonRaw, '#ifdef\s+DSR2_DS4_EXPERIMENTAL[\s\S]*?kVersion\s*=\s*"([^"]+)"')
+    if (-not $m.Success) { throw "could not parse DS4 version from common.h" }
+    $baseVer = ($m.Groups[1].Value -split '-')[0]
+    $zipName = "DualSenseRDR2-v$baseVer-ds4-experimental.zip"
+    $buildDir = "$root\mod\build-ds4"
+    $readmeSrc = "$root\release\README-DS4.txt"
+} else {
+    $m = [regex]::Matches($commonRaw, 'kVersion\s*=\s*"([^"]+)"')
+    if ($m.Count -lt 1) { throw "could not parse version from common.h" }
+    $version = $m[$m.Count - 1].Groups[1].Value
+    $zipName = "DualSenseRDR2-v$version.zip"
+    $buildDir = "$root\mod\build"
+    $readmeSrc = "$root\release\README.txt"
+}
+$asi = "$buildDir\DualSenseRDR2.asi"
+$coreDll = "$buildDir\DualSenseCore.dll"
+if (-not (Test-Path $asi) -or -not (Test-Path $coreDll)) {
+    throw "build the mod first ($asi + $coreDll)"
+}
+$testExe = "$buildDir\dsr2_test.exe"
 if (Test-Path $testExe) {
     & $testExe --selftest
     if ($LASTEXITCODE -ne 0) { throw "dsr2_test --selftest failed (exit $LASTEXITCODE)" }
 }
-$reloadExe = "$root\mod\build\test_reload\dsr2_reload_test.exe"
+$reloadExe = "$buildDir\test_reload\dsr2_reload_test.exe"
 if (Test-Path $reloadExe) {
     & $reloadExe
     if ($LASTEXITCODE -ne 0) { throw "dsr2_reload_test failed (exit $LASTEXITCODE)" }
@@ -40,10 +60,10 @@ try {
         Copy-Item "$lml\$a" "$stage\lml\$a"
     }
     # (the texts are not a file: the .asi adds them to the game's string table - any game language)
-    Copy-Item "$root\release\README.txt" $stage
+    Copy-Item $readmeSrc "$stage\README.txt"
     Copy-Item "$root\LICENSE" "$stage\LICENSE.txt"
 
-    $zip = "$root\release\DualSenseRDR2-v$version.zip"
+    $zip = "$root\release\$zipName"
     if (Test-Path $zip) { Remove-Item $zip }
     Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
     $archive = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Create)

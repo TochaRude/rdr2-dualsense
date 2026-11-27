@@ -89,18 +89,33 @@ bool Input::install_hook() {
     return a && b;
 }
 
-WORD xbutton_from_name(const std::string& n0) {
+TouchAction touch_action_from_name(const std::string& n0) {
+    size_t a = n0.find_first_not_of(" \t\r\n");
+    if (a == std::string::npos) return {0, 0.0};
+    size_t b = n0.find_last_not_of(" \t\r\n");
     std::string n;
-    for (char c : n0) n += char(toupper((unsigned char)c));
+    for (char c : n0.substr(a, b - a + 1)) n += char(toupper((unsigned char)c));
+    if (n == "OFF" || n == "NONE") return {0, 0.0};
+    if (n == "LS" || n == "L3" || n == "CALM_HORSE" || n == "PAT_HORSE") return {XINPUT_GAMEPAD_LEFT_THUMB, 0.22};
+    if (n == "EAGLE_EYE") return {WORD(XINPUT_GAMEPAD_LEFT_THUMB | XINPUT_GAMEPAD_RIGHT_THUMB), 0.22};
+    if (n == "MAP") return {XINPUT_GAMEPAD_START, 0.70};
+    if (n == "CINEMATIC") return {XINPUT_GAMEPAD_BACK, 0.70};
+    if (n == "LONG_WHISTLE") return {XINPUT_GAMEPAD_DPAD_UP, 0.70};
+    if (n == "SATCHEL") return {XINPUT_GAMEPAD_DPAD_RIGHT, 0.70};
+    if (n == "JOURNAL") return {XINPUT_GAMEPAD_DPAD_LEFT, 0.70};
+    if (n == "UP") return {XINPUT_GAMEPAD_DPAD_UP, 0.18};
     static const std::pair<const char*, WORD> map[] = {
         {"A", XINPUT_GAMEPAD_A}, {"B", XINPUT_GAMEPAD_B}, {"X", XINPUT_GAMEPAD_X}, {"Y", XINPUT_GAMEPAD_Y},
         {"LB", XINPUT_GAMEPAD_LEFT_SHOULDER}, {"RB", XINPUT_GAMEPAD_RIGHT_SHOULDER}, {"BACK", XINPUT_GAMEPAD_BACK},
-        {"START", XINPUT_GAMEPAD_START}, {"LS", XINPUT_GAMEPAD_LEFT_THUMB}, {"RS", XINPUT_GAMEPAD_RIGHT_THUMB},
-        {"UP", XINPUT_GAMEPAD_DPAD_UP}, {"DOWN", XINPUT_GAMEPAD_DPAD_DOWN}, {"LEFT", XINPUT_GAMEPAD_DPAD_LEFT},
-        {"RIGHT", XINPUT_GAMEPAD_DPAD_RIGHT},
+        {"START", XINPUT_GAMEPAD_START}, {"RS", XINPUT_GAMEPAD_RIGHT_THUMB},
+        {"DOWN", XINPUT_GAMEPAD_DPAD_DOWN}, {"LEFT", XINPUT_GAMEPAD_DPAD_LEFT}, {"RIGHT", XINPUT_GAMEPAD_DPAD_RIGHT},
     };
-    for (auto& [k, v] : map) if (n == k) return v;
-    return 0;
+    for (auto& [k, v] : map) if (n == k) return {v, 0.15};
+    return {0, 0.0};
+}
+
+WORD xbutton_from_name(const std::string& n0) {
+    return touch_action_from_name(n0).buttons;
 }
 
 void Input::configure() {
@@ -120,20 +135,28 @@ void Input::configure() {
     hide_other_ = c.flag("General", "HideOtherPads", true);
     world().gyro_enabled = gc.mode != 0;
     world().gyro_wants_always = gc.mode == 2;
+    auto to_cfg = [](const TouchAction& ta) -> TouchActionCfg { return {ta.buttons, ta.hold_s}; };
     std::lock_guard<std::mutex> l(mu_);
-    touch_click_ = xbutton_from_name(c.str("Touchpad", "Click", "BACK"));
-    swipe_[0] = xbutton_from_name(c.str("Touchpad", "SwipeUp", ""));
-    swipe_[1] = xbutton_from_name(c.str("Touchpad", "SwipeDown", ""));
-    swipe_[2] = xbutton_from_name(c.str("Touchpad", "SwipeLeft", ""));
-    swipe_[3] = xbutton_from_name(c.str("Touchpad", "SwipeRight", ""));
-    two_finger_ = xbutton_from_name(c.str("Touchpad", "TwoFingerTap", ""));
+    touch_click_ = to_cfg(touch_action_from_name(c.str("Touchpad", "Click", "BACK")));
+    swipe_[0] = to_cfg(touch_action_from_name(c.str("Touchpad", "SwipeUp", "")));
+    swipe_[1] = to_cfg(touch_action_from_name(c.str("Touchpad", "SwipeDown", "")));
+    swipe_[2] = to_cfg(touch_action_from_name(c.str("Touchpad", "SwipeLeft", "")));
+    swipe_[3] = to_cfg(touch_action_from_name(c.str("Touchpad", "SwipeRight", "")));
+    two_finger_ = to_cfg(touch_action_from_name(c.str("Touchpad", "TwoFingerTap", "")));
     gyro_cfg_ = gc;
 }
 
 void Input::inject(WORD button, double seconds) {
-    if (!button) return;
+    if (!button || seconds <= 0.0) return;
+    double until = now_s() + seconds;
     std::lock_guard<std::mutex> l(mu_);
-    injections_.push_back({button, now_s() + seconds});
+    for (auto& inj : injections_) {
+        if (inj.button == button) {
+            inj.until = std::max(inj.until, until);
+            return;
+        }
+    }
+    injections_.push_back({button, until});
 }
 
 void Input::hold_lt(double seconds) {
@@ -187,7 +210,15 @@ void Input::publish(const InputState& s, int game_rt, bool connected) {
     }
     double t = now_s();
     std::lock_guard<std::mutex> l(mu_);
-    if (s.buttons & TOUCHPAD) g.wButtons |= touch_click_;
+    const bool tp_down = (s.buttons & TOUCHPAD) != 0;
+    if (touch_click_.buttons) {
+        if (touch_click_.hold_s >= 0.5) {
+            if (tp_down && !prev_touchpad_btn_) injections_.push_back({touch_click_.buttons, t + touch_click_.hold_s});
+        } else if (tp_down) {
+            g.wButtons |= touch_click_.buttons;
+        }
+    }
+    prev_touchpad_btn_ = tp_down;
     for (auto it = injections_.begin(); it != injections_.end();) {
         if (t < it->until) { g.wButtons |= it->button; ++it; }
         else it = injections_.erase(it);
@@ -251,29 +282,39 @@ void Input::track_touch(const InputState& s) {
         sy_ = ly_ = primary->y;
         touch_t_ = s.t;
         two_ = both;
+        touch_clicked_ = (s.buttons & TOUCHPAD) != 0;
     }
     if (touching_) {
         if (both) two_ = true;
+        if (s.buttons & TOUCHPAD) touch_clicked_ = true;
         if (primary) {
             lx_ = primary->x;
             ly_ = primary->y;
         }
         if (!any) {
+            const bool clicked = touch_clicked_;
             touching_ = false;
+            touch_clicked_ = false;
             touch_id_ = -1;
+            if (clicked) return;
             double dt = s.t - touch_t_;
             int dx = lx_ - sx_, dy = ly_ - sy_;
-            WORD two_btn, sw[4];
+            TouchActionCfg two_btn, sw[4];
             {
                 std::lock_guard<std::mutex> l(mu_);
                 two_btn = two_finger_;
                 for (int i = 0; i < 4; ++i) sw[i] = swipe_[i];
             }
             if (two_ && dt < 0.35 && std::abs(dx) < 150 && std::abs(dy) < 150) {
-                inject(two_btn, 0.12);
-            } else if (!two_ && dt < 0.5) {
-                if (std::abs(dy) > 300 && std::abs(dy) > std::abs(dx)) inject(sw[dy < 0 ? 0 : 1], 0.12);
-                else if (std::abs(dx) > 450) inject(sw[dx < 0 ? 2 : 3], 0.12);
+                inject(two_btn.buttons, two_btn.hold_s);
+            } else if (!two_ && dt < 0.75) {
+                if (std::abs(dy) > 260 && std::abs(dy) > std::abs(dx)) {
+                    const auto& act = sw[dy < 0 ? 0 : 1];
+                    inject(act.buttons, act.hold_s);
+                } else if (std::abs(dx) > 380) {
+                    const auto& act = sw[dx < 0 ? 2 : 3];
+                    inject(act.buttons, act.hold_s);
+                }
             }
         }
     }

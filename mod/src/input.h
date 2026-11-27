@@ -48,7 +48,12 @@ private:
     std::atomic<float> rumble_low_{0}, rumble_high_{0};
     std::atomic<int> raw_rx_{128}, raw_ry_{128};
     std::atomic<double> rt_press_read_t_{0};
-    WORD touch_click_ = XINPUT_GAMEPAD_BACK, swipe_[4] = {0, 0, 0, 0}, two_finger_ = 0;
+    struct TouchActionCfg {
+        WORD buttons = 0;
+        double hold_s = 0.15;
+    };
+    TouchActionCfg touch_click_{XINPUT_GAMEPAD_BACK, 0.15}, swipe_[4]{}, two_finger_{};
+    bool touch_clicked_ = false, prev_touchpad_btn_ = false;
     // cached gyro config (updated in configure() so track_gyro() never locks Config at 250 Hz)
     struct GyroCfg {
         int mode = 0;            // 0 = off, 1 = aim, 2 = always
@@ -80,7 +85,13 @@ private:
     DWORD (WINAPI* real_set_)(DWORD, XINPUT_VIBRATION*) = nullptr;
 };
 
+struct TouchAction {
+    WORD buttons = 0;
+    double hold_s = 0.15;
+};
+
 Input& input();
+TouchAction touch_action_from_name(const std::string& name);
 WORD xbutton_from_name(const std::string& name);
 
 }  // namespace dsr2

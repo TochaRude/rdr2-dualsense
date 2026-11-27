@@ -20,6 +20,7 @@ and follow the installation steps in `README.txt` inside the archive.
 Starting with **`v2.0.0`**, this repository publishes standalone releases directly from `main`:
 - **`v1.3.0-fork.1` – `v1.3.0-fork.3`**: Earlier community fork releases built on OldKrab's `v1.3.0`.
 - **`v1.4.0-fork.1-pre.1`** *(Pre-Release)*: Combined upstream `v1.4.0` (`24535bd`) with expanded 63-row 8-language settings UI, touchpad gestures, full-travel actions, 93-weapon coverage, world haptics, and `.awc` soundbank effects.
+- **`v2.0.1`**: Menu & exit controller LED shutoff (lightbar, player LEDs, and mute LED turn off cleanly in menus/exit without a companion process), pink-free Lightbar idle curve + custom color presets (`Color=auto|off|white|blue|cyan|green|gold|orange|red|purple|#RRGGBB`), Player LED brightness scaling & `MuteLed` control, and expanded Touchpad presets (Calm/Pat Horse `L3`, `L3+R3` Eagle Eye, Map, Satchel, Journal, Cinematic Camera, Long Whistle) with click-swipe suppression.
 - **`v2.0.0`**: First full standalone release on `main`, adding native-reviewed Russian localization, a clean DualSense hardware reset when quitting RDR2 (turning off lightbar, LEDs, triggers, rumble, speaker route, and releasing the HID handle cleanly), and updated end-user documentation.
 
 ---

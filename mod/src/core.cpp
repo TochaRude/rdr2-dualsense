@@ -12,6 +12,53 @@
 
 namespace dsr2 {
 
+namespace {
+
+struct WindowSearch {
+    DWORD pid = 0;
+    HWND sga = nullptr;
+    HWND other = nullptr;
+};
+
+BOOL CALLBACK enum_game_window(HWND hwnd, LPARAM lp) {
+    auto* ctx = reinterpret_cast<WindowSearch*>(lp);
+    DWORD wpid = 0;
+    GetWindowThreadProcessId(hwnd, &wpid);
+    if (wpid != ctx->pid) return TRUE;
+    if (!IsWindowVisible(hwnd)) return TRUE;
+
+    wchar_t cls[64]{};
+    GetClassNameW(hwnd, cls, 64);
+    if (_wcsicmp(cls, L"sgaWindow") == 0) {
+        ctx->sga = hwnd;
+        return FALSE;
+    }
+    if (!ctx->other) {
+        wchar_t title[128]{};
+        GetWindowTextW(hwnd, title, 128);
+        if (title[0]) {
+            CharLowerBuffW(title, lstrlenW(title));
+            if (wcsstr(title, L"red dead redemption") != nullptr) {
+                ctx->other = hwnd;
+                return TRUE;
+            }
+        }
+        RECT rc{};
+        if (GetClientRect(hwnd, &rc) && (rc.right - rc.left) >= 320 && (rc.bottom - rc.top) >= 200)
+            ctx->other = hwnd;
+    }
+    return TRUE;
+}
+
+HWND find_game_window() {
+    WindowSearch ws;
+    ws.pid = GetCurrentProcessId();
+    EnumWindows(enum_game_window, reinterpret_cast<LPARAM>(&ws));
+    return ws.sga ? ws.sga : ws.other;
+}
+
+}  // namespace
+
 Core& core() {
     static Core* c = new Core();
     return *c;
@@ -83,8 +130,11 @@ bool Core::init(bool in_game, const std::string& test_weapon) {
     }
     enabled_ = true;
     if (in_game) input().install_hook();
+#ifdef DSR2_DS4_EXPERIMENTAL
+    audio_.set_rumble_only(true);
+#endif
     audio_.set_bluetooth_output([this](const uint8_t* pcm) { return pad_.send_haptics(pcm); },
-                                [this] { return pad_.connected() && !pad_.usb(); });
+                                [this] { return pad_.connected() && !pad_.usb() && !pad_.is_ds4(); });
     audio_.start(&lib_);
     init_t_ = now_s();
     title_cross_armed_ = true;
@@ -224,6 +274,59 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         LOGI("settings and data reloaded");
         audio_.ack_flash_until = now_s() + 0.4;   // the confirmation flash: after the reload (it takes ~0.6 s)
     }
+    if (exit_reset_pending_.exchange(false, std::memory_order_acq_rel)) {
+        audio_.set_rumble(0, 0);
+        audio_.set_tracks_muted(true);
+        out = DualSense::reset_output();
+        pad_.request_force_write();
+        return true;
+    }
+    if (in_game_) {
+        if (last_hwnd_check_ < 0 || s.t - last_hwnd_check_ >= 0.05) {
+            last_hwnd_check_ = s.t;
+            if (!game_hwnd_) {
+                if (HWND w = find_game_window()) {
+                    game_hwnd_ = w;
+                    if (window_closing_) {
+                        window_closing_ = false;
+                        LOGI("game window active again");
+                    } else {
+                        LOGI("game window tracked (0x%p)", static_cast<void*>(game_hwnd_));
+                    }
+                }
+            } else {
+                const bool alive = IsWindow(game_hwnd_) != FALSE;
+                const bool vis = alive && IsWindowVisible(game_hwnd_) != FALSE;
+                const bool iconic = alive && IsIconic(game_hwnd_) != FALSE;
+                if (window_is_closing(true, alive, vis, iconic)) {
+                    HWND replacement = !alive ? find_game_window() : nullptr;
+                    if (replacement) {
+                        game_hwnd_ = replacement;
+                        if (window_closing_) {
+                            window_closing_ = false;
+                            LOGI("game window active again");
+                        }
+                    } else {
+                        if (!alive) game_hwnd_ = nullptr;
+                        if (!window_closing_) {
+                            window_closing_ = true;
+                            LOGI("game window %s - resetting controller", alive ? "hidden" : "closed");
+                        }
+                    }
+                } else if (window_closing_) {
+                    window_closing_ = false;
+                    LOGI("game window active again");
+                }
+            }
+        }
+        if (window_closing_) {
+            audio_.set_rumble(0, 0);
+            audio_.set_tracks_muted(true);
+            out = DualSense::reset_output();
+            pad_.request_force_write();
+            return true;
+        }
+    }
     GameSnapshot g = in_game_ ? world().snapshot() : GameSnapshot{};
     std::vector<WorldEvent> events = in_game_ ? world().take_events() : std::vector<WorldEvent>{};
     // In the pause menu and on loading screens the game's scripts stand still - and so does our picture of the game.
@@ -323,7 +426,7 @@ bool Core::on_input(const InputState& s, OutputState& out) {
     const uint32_t pressed = s.buttons & ~prev_buttons_;
     prev_buttons_ = s.buttons;
     bool can_run_engine = engine_ && !paused && !frozen && !(in_game_ && (g.blocked || g.swimming));
-    bool weapon_active = can_run_engine && triggers_on_;
+    bool weapon_active = can_run_engine && triggers_on_ && !pad_.is_ds4();
     if (can_run_engine) frame = engine_->update(s, h);
     if (in_game_ && frame.flash) world().notify_shot(s.t);
     std::vector<Cue> cues = std::move(frame.cues);
@@ -333,10 +436,10 @@ bool Core::on_input(const InputState& s, OutputState& out) {
     }
     features_.update(s, g, std::move(events), engine_ ? &frame : nullptr, weapon_active,
                      engine_ ? engine_->clip() : -1, engine_ ? engine_->clip_size() : 0, audio_.mic_listening(), out, cues);
-    // Keep adaptive triggers relaxed and suppress haptics in main menus, pause menus, and loading screens.
+    // Keep adaptive triggers relaxed, controller LEDs off, and suppress haptics in main menus, pause menus, and loading screens.
     if (in_menu) {
-        out.r2 = fx::off();
-        out.l2 = fx::off();
+        apply_menu_idle(out);
+        features_.reset_lightbar();
         cues.clear();
         const bool texts_ready = text_inject_ready();
         const bool nav_pressed = (pressed & (DPAD_UP | DPAD_DOWN | DPAD_LEFT | DPAD_RIGHT | L1 | R1 | CIRCLE)) != 0;
@@ -395,9 +498,12 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         else if (it != colors.end()) { out.r = it->second[0]; out.g = it->second[1]; out.b = it->second[2]; }
         out.has_lightbar = true;
     }
-    if (s.t < audio_.ack_flash_until.load()) {          // recognition flash
+    if (s.t < audio_.ack_flash_until.load() && features_.lightbar_enabled()) {          // recognition flash
+        float br = clampv(features_.brightness(), 0.0f, 1.0f);
         out.has_lightbar = true;
-        out.r = 40; out.g = 160; out.b = 255;
+        out.r = uint8_t(std::lround(40.0f * br));
+        out.g = uint8_t(std::lround(160.0f * br));
+        out.b = uint8_t(std::lround(255.0f * br));
     }
     // Route controller speaker output by category when "Sounds from the Controller" is active.
     const bool spk_on = speaker_mechanics_.load() && haptics_on_;
@@ -506,18 +612,23 @@ bool Core::on_input(const InputState& s, OutputState& out) {
         if (paused || in_menu) audio_.set_rumble(0, 0);   // mute game rumble in wheel/menus/loading
         else audio_.set_rumble(rl, rh);
     }
-    if (!audio_.ok() && haptics_on_) {
+    if (!audio_.ok()) {
         out.has_rumble = true;
-        audio_.rumble_tick(s.t, out.rumble_left, out.rumble_right);
-        if (log::debug_enabled()) {                    // debug: what the motors are actually given (Bluetooth)
-            bt_max_l_ = std::max(bt_max_l_, int(out.rumble_left));
-            bt_max_r_ = std::max(bt_max_r_, int(out.rumble_right));
-            if (s.t - bt_log_t_ > 2.0) {
-                LOGD("bluetooth rumble: strongest in 2 s left %d right %d (of 255), game rumble %.2f / %.2f", bt_max_l_,
-                     bt_max_r_, input().rumble_low(), input().rumble_high());
-                bt_max_l_ = bt_max_r_ = 0;
-                bt_log_t_ = s.t;
+        if (!in_menu && haptics_on_) {
+            audio_.rumble_tick(s.t, out.rumble_left, out.rumble_right);
+            if (log::debug_enabled()) {                    // debug: what the motors are actually given (Bluetooth / DS4 rumble)
+                bt_max_l_ = std::max(bt_max_l_, int(out.rumble_left));
+                bt_max_r_ = std::max(bt_max_r_, int(out.rumble_right));
+                if (s.t - bt_log_t_ > 2.0) {
+                    LOGD("rumble emulation: strongest in 2 s left %d right %d (of 255), game rumble %.2f / %.2f", bt_max_l_,
+                         bt_max_r_, input().rumble_low(), input().rumble_high());
+                    bt_max_l_ = bt_max_r_ = 0;
+                    bt_log_t_ = s.t;
+                }
             }
+        } else {
+            out.rumble_left = 0;
+            out.rumble_right = 0;
         }
     }
     // hold PS ~1 s: reload the ini and the data, like F9 (the game never sees the PS button)

@@ -16,6 +16,10 @@ namespace dsr2 {
 class Features {
 public:
     void configure();
+    bool lightbar_enabled() const { return lightbar_on_; }
+    float brightness() const { return brightness_; }
+    void reset_lightbar() { lb_[0] = lb_[1] = lb_[2] = 0; }
+    static bool parse_lightbar_color(const std::string& raw, uint8_t& r, uint8_t& g, uint8_t& b);
     // adds cues, sets lightbar/LEDs, may override triggers when no weapon effect is active
     void update(const InputState& in, const GameSnapshot& g, std::vector<WorldEvent> events, const EngineFrame* weapon,
                 bool weapon_active, int clip, int clip_size, bool mic_listening, OutputState& out, std::vector<Cue>& cues);
@@ -37,6 +41,11 @@ private:
     int riding_pulse_ = 2;
     enum class LedMode { Off, Ammo, Health, Auto };
     LedMode led_mode_ = LedMode::Auto;
+    enum class ColorMode { TimeOfDay, Off, Static };
+    ColorMode color_mode_ = ColorMode::TimeOfDay;
+    float static_rgb_[3] = {0, 0, 0};
+    enum class MuteLedMode { Auto, On, Off };
+    MuteLedMode mute_led_mode_ = MuteLedMode::Auto;
     bool lightbar_on_ = true, lightbar_off_sent_ = false, ammo_leds_ = true, time_of_day_ = true;
     // horse
     double next_horse_heart_ = 0, next_breath_ = 0, next_horse_spook_ = 0;

@@ -25,11 +25,30 @@ public:
     void shutdown();
     void script_tick();                 // ScriptHook thread (in game) or test loop
     void request_reload() { reload_requested_ = true; }
+    void request_exit_reset() { exit_reset_pending_.store(true, std::memory_order_release); }
     void load_game_files();       // script thread, first tick: the base game's sound banks, then a reload
+    // Pure helper: whether an already-seen game window closed or became hidden (not merely minimized).
+    static bool window_is_closing(bool had_window, bool is_window, bool is_visible, bool is_iconic) {
+        if (!had_window) return false;
+        return !is_window || (!is_visible && !is_iconic);
+    }
     // Pure helper: whether stalled-script gameplay should pass native game rumble through.
     static bool should_fallback_rumble(bool frozen, bool paused, double frozen_for, float rl, float rh, bool already_active) {
         if (!frozen || paused || frozen_for < 3.0) return false;
         return already_active || rl > 0.001f || rh > 0.001f;
+    }
+    static void apply_menu_idle(OutputState& out) {
+        out.r2 = fx::off();
+        out.l2 = fx::off();
+        out.has_rumble = true;
+        out.rumble_left = 0;
+        out.rumble_right = 0;
+        out.has_lightbar = true;
+        out.r = 0;
+        out.g = 0;
+        out.b = 0;
+        out.player_leds = 0;
+        out.mute_led = 0;
     }
     // Pure helper: gate Cross confirm thump strictly to the loaded title menu and in-game pause menu.
     static bool allow_ui_confirm(bool ever_valid, double g_time, bool g_menu,
@@ -110,6 +129,10 @@ private:
     double init_t_ = 0.0;
     bool title_cross_armed_ = true;
     std::atomic<bool> restarting_{false};
+    std::atomic<bool> exit_reset_pending_{false};
+    HWND game_hwnd_ = nullptr;
+    double last_hwnd_check_ = -1.0;
+    bool window_closing_ = false;
 };
 
 Core& core();

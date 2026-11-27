@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 project(DualSenseRDR2 C CXX)
 
+option(DSR2_DS4_EXPERIMENTAL "Build experimental DualShock 4 edition" OFF)
+if (DSR2_DS4_EXPERIMENTAL)
+    add_compile_definitions(DSR2_DS4_EXPERIMENTAL=1)
+endif ()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if (NOT CMAKE_BUILD_TYPE)

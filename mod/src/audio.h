@@ -54,6 +54,7 @@ public:
     }
     void set_bluetooth_options(bool on, bool unsigned8, bool swap) { bt_on_ = on; bt_u8_ = unsigned8; bt_swap_ = swap; }
     bool bluetooth_haptics() const { return bt_active_.load(); }
+    void set_rumble_only(bool on) { rumble_only_ = on; }
 
     // Bluetooth fallback: cue envelopes on the two rumble motors. Call from the controller thread.
     void rumble_tick(double now, uint8_t& left, uint8_t& right);
@@ -102,7 +103,7 @@ private:
     float duck_ = 1.0f, rl_ = 0, rh_ = 0, ph_l_ = 0, ph_h_ = 0;
     std::function<bool(const uint8_t*)> bt_sink_;
     std::function<bool()> bt_ready_;
-    std::atomic<bool> bt_on_{true}, bt_u8_{false}, bt_swap_{false}, bt_active_{false};
+    std::atomic<bool> bt_on_{true}, bt_u8_{false}, bt_swap_{false}, bt_active_{false}, rumble_only_{false};
 
     HapticLibrary* lib_ = nullptr;
     std::thread render_, loop_, mic_;

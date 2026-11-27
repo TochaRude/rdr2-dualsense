@@ -569,7 +569,8 @@ int run_selftests(const fs::path& data) {
         CHECK(SettingsMenu::page_value(*trig, cfg) == 1 && SettingsMenu::page_ini(*trig, 0) == "0", "toggle 0 / 1");
         CHECK(SettingsMenu::page_value(*slip, cfg) == 1 && SettingsMenu::page_ini(*slip, 0) == "0" &&
                   SettingsMenu::page_value(*spk_amb, cfg) == 1 && SettingsMenu::page_value(*spk_ui, cfg) == 1 &&
-                  SettingsMenu::page_value(*tod, cfg) == 1 && SettingsMenu::page_value(*landing, cfg) == 70 &&
+                  SettingsMenu::page_value(*tod, cfg) == 0 && SettingsMenu::page_ini(*tod, 0) == "auto" &&
+                  SettingsMenu::page_ini(*tod, 1) == "off" && SettingsMenu::page_value(*landing, cfg) == 70 &&
                   SettingsMenu::page_max(*gyro_sens) == 200 && SettingsMenu::page_value(*gyro_sens, cfg) == 100 &&
                   SettingsMenu::page_value(*gyro_out, cfg) == 0 && SettingsMenu::page_ini(*gyro_out, 1) == "stick" &&
                   SettingsMenu::page_value(*voice_conf, cfg) == 70,
@@ -1222,6 +1223,93 @@ int run_selftests(const fs::path& data) {
         // DualSense exit reset clears triggers, rumble, lightbar, player LEDs, mute LED & speaker route
         {
             DualSense ds_enc;
+            OutputState os_bright;
+            os_bright.led_brightness = 2;
+            os_bright.player_leds = 0x1F;
+            uint8_t p_led[47]{};
+            ds_enc.encode_payload(os_bright, p_led);
+            CHECK((p_led[38] & 0x01) != 0 && p_led[42] == 2 && p_led[43] == 0x1F,
+                  "encode_payload sets DualSense Player LED brightness flag and level");
+
+            OutputState menu_out;
+            menu_out.r2 = fx::weapon(2, 6, 8);
+            menu_out.l2 = fx::feedback(3, 5);
+            menu_out.r = 200; menu_out.g = 100; menu_out.b = 50;
+            menu_out.player_leds = 0x15;
+            menu_out.mute_led = 1;
+            Core::apply_menu_idle(menu_out);
+            CHECK(menu_out.r2 == fx::off() && menu_out.l2 == fx::off() &&
+                      menu_out.has_rumble && menu_out.rumble_left == 0 && menu_out.rumble_right == 0 &&
+                      menu_out.has_lightbar && menu_out.r == 0 && menu_out.g == 0 && menu_out.b == 0 &&
+                      menu_out.player_leds == 0 && menu_out.mute_led == 0,
+                  "Core::apply_menu_idle clears triggers, rumble, lightbar, player LEDs, and mute LED");
+
+            // DualShock 4 HID input parsing (USB 0x01, BT 0x11, BT basic 0x01) & output encoding (USB 0x05, BT 0x11)
+            uint8_t ds4_usb[64]{};
+            ds4_usb[0] = 0x01;
+            ds4_usb[1] = 200; ds4_usb[2] = 40; ds4_usb[3] = 90; ds4_usb[4] = 170;
+            ds4_usb[5] = 0x20 | 0x06;                 // Cross + D-Pad Left
+            ds4_usb[6] = 0x10 | 0x40;                 // Share + L3
+            ds4_usb[7] = 0x03;                        // PS + Touchpad click
+            ds4_usb[8] = 111; ds4_usb[9] = 222;       // L2, R2
+            ds4_usb[13] = 0xEC; ds4_usb[14] = 0xFF;   // gyro[0] = -20
+            ds4_usb[23] = 0x39; ds4_usb[24] = 0x30;   // accel[2] = 12345
+            ds4_usb[30] = 0x38;                       // cable (0x10) + headphones (0x20) + level 8
+            ds4_usb[33] = 1;                          // 1 touch packet
+            ds4_usb[35] = 0x05;                       // finger 0 active (bit7=0), id 5
+            ds4_usb[36] = 0x20; ds4_usb[37] = 0x43; ds4_usb[38] = 0x12;   // x=0x320 (800), y=0x124 (292)
+            InputState st_ds4_u;
+            CHECK(DualSense::parse_ds4_report(ds4_usb, sizeof ds4_usb, true, st_ds4_u) &&
+                      st_ds4_u.lx == 200 && st_ds4_u.l2 == 111 && st_ds4_u.r2 == 222 &&
+                      (st_ds4_u.buttons & (CROSS | DPAD_LEFT | CREATE | L3 | PS | TOUCHPAD)) ==
+                          (CROSS | DPAD_LEFT | CREATE | L3 | PS | TOUCHPAD) &&
+                      st_ds4_u.gyro[0] == -20 && st_ds4_u.accel[2] == 12345 &&
+                      st_ds4_u.charging() && st_ds4_u.headphones && st_ds4_u.battery == 8 &&
+                      st_ds4_u.touch[0].active && st_ds4_u.touch[0].id == 5 &&
+                      st_ds4_u.touch[0].x == 800 && st_ds4_u.touch[0].y == 292,
+                  "parse_ds4_report decodes USB 0x01 sticks, buttons, triggers, IMU, battery/jack, and touchpad");
+
+            uint8_t ds4_bt[78]{};
+            ds4_bt[0] = 0x11; ds4_bt[1] = 0xC0; ds4_bt[2] = 0x00;
+            std::memcpy(ds4_bt + 3, ds4_usb + 1, 63);
+            InputState st_ds4_bt;
+            CHECK(DualSense::parse_ds4_report(ds4_bt, sizeof ds4_bt, false, st_ds4_bt) &&
+                      st_ds4_bt.lx == 200 && st_ds4_bt.r2 == 222 && st_ds4_bt.touch[0].active &&
+                      st_ds4_bt.touch[0].x == 800 && st_ds4_bt.touch[0].y == 292,
+                  "parse_ds4_report decodes Bluetooth 0x11 report with +2 framing shift");
+
+            uint8_t ds4_bt_basic[10]{};
+            ds4_bt_basic[0] = 0x01;
+            std::memcpy(ds4_bt_basic + 1, ds4_usb + 1, 9);
+            InputState st_ds4_basic;
+            st_ds4_basic.touch[0].active = true;
+            CHECK(DualSense::parse_ds4_report(ds4_bt_basic, sizeof ds4_bt_basic, false, st_ds4_basic) &&
+                      st_ds4_basic.l2 == 111 && st_ds4_basic.r2 == 222 && !st_ds4_basic.touch[0].active,
+                  "parse_ds4_report handles Bluetooth basic 0x01 fallback without stale touch state");
+
+            OutputState os_ds4;
+            os_ds4.has_rumble = true; os_ds4.rumble_left = 180; os_ds4.rumble_right = 90;
+            os_ds4.has_lightbar = true; os_ds4.r = 10; os_ds4.g = 20; os_ds4.b = 30;
+            uint8_t ds4_out_u[32]{}, ds4_out_bt[78]{};
+            DualSense::encode_ds4_report(os_ds4, true, ds4_out_u, sizeof ds4_out_u);
+            DualSense::encode_ds4_report(os_ds4, false, ds4_out_bt, sizeof ds4_out_bt);
+            const uint32_t expected_crc = DualSense::bt_crc32(ds4_out_bt, 74);
+            uint32_t got_crc = 0;
+            std::memcpy(&got_crc, ds4_out_bt + 74, 4);
+            CHECK(ds4_out_u[0] == 0x05 && ds4_out_u[1] == 0x07 &&
+                      ds4_out_u[4] == 90 && ds4_out_u[5] == 180 &&
+                      ds4_out_u[6] == 10 && ds4_out_u[7] == 20 && ds4_out_u[8] == 30 &&
+                      ds4_out_bt[0] == 0x11 && ds4_out_bt[1] == 0xC0 && ds4_out_bt[3] == 0x07 &&
+                      ds4_out_bt[6] == 90 && ds4_out_bt[7] == 180 &&
+                      ds4_out_bt[8] == 10 && ds4_out_bt[9] == 20 && ds4_out_bt[10] == 30 &&
+                      got_crc == expected_crc,
+                  "encode_ds4_report formats USB 0x05 and BT 0x11 output reports + CRC32 cleanly");
+
+            DualSense::encode_ds4_report(DualSense::reset_output(), true, ds4_out_u, sizeof ds4_out_u);
+            CHECK(ds4_out_u[0] == 0x05 && ds4_out_u[4] == 0 && ds4_out_u[5] == 0 &&
+                      ds4_out_u[6] == 0 && ds4_out_u[7] == 0 && ds4_out_u[8] == 0,
+                  "encode_ds4_report reset_output zeroes DS4 motors and RGB lightbar");
+
             uint8_t p_enc[47]{};
             ds_enc.encode_payload(DualSense::reset_output(), p_enc);
             const auto off_blk = fx::off();
@@ -1240,10 +1328,101 @@ int run_selftests(const fs::path& data) {
                   "build_reset_payload forces USB speaker mute and lightbar release when requested");
             CHECK((p_bt[0] & 0xA0) == 0 && (p_bt[38] & 0x06) == 0x04 && p_bt[41] == 0,
                   "build_reset_payload omits USB audio routing and lightbar release when not needed");
-            ds_enc.reset_on_exit();  // safe no-op without open handle
+            CHECK(ds_enc.reset_on_exit() == 0, "reset_on_exit returns 0 when no handle is open");
+            CHECK(!Core::window_is_closing(false, false, false, false) &&
+                      !Core::window_is_closing(true, true, true, false) &&
+                      !Core::window_is_closing(true, true, false, true) &&
+                      Core::window_is_closing(true, true, false, false) &&
+                      Core::window_is_closing(true, false, false, false),
+                  "window_is_closing detects hidden or destroyed windows without triggering on minimize");
         }
 
-        // In-game Triggers.Strength + Touchpad gesture rows
+        // Lightbar color parser, anti-pink daylight/twilight curve, Player LED brightness & MuteLed modes
+        {
+            uint8_t pr = 0, pg = 0, pb = 0;
+            CHECK(Features::parse_lightbar_color("blue", pr, pg, pb) && pb > pr &&
+                      Features::parse_lightbar_color(" #112233 ", pr, pg, pb) && pr == 0x11 && pg == 0x22 && pb == 0x33 &&
+                      Features::parse_lightbar_color("10, 20, 30", pr, pg, pb) && pr == 10 && pg == 20 && pb == 30 &&
+                      !Features::parse_lightbar_color("off", pr, pg, pb) &&
+                      !Features::parse_lightbar_color("auto", pr, pg, pb) &&
+                      !Features::parse_lightbar_color("not_a_color", pr, pg, pb),
+                  "Features::parse_lightbar_color handles presets, hex, RGB, and rejects non-colors");
+
+            const std::string pid = std::to_string(GetCurrentProcessId());
+            fs::path lb_ini = fs::temp_directory_path() / ("dsr2_lb_v201_" + pid + ".ini");
+            auto write_ini = [&](const std::string& body) {
+                std::ofstream o(lb_ini);
+                o << body;
+            };
+
+            write_ini("[Lightbar]\nEnabled=1\nBrightness=1.0\nColor=auto\nPlayerLeds=ammo\nMuteLed=auto\n");
+            config().load(lb_ini.wstring());
+            Features f_tod;
+            f_tod.configure();
+            auto sample_tod = [&](int hour) {
+                InputState in; in.t = 100.0;
+                GameSnapshot g; g.valid = true; g.hour = hour; g.health_core = 100;
+                OutputState o;
+                std::vector<Cue> cq;
+                for (int i = 0; i < 40; ++i) {
+                    in.t += 0.02; cq.clear();
+                    f_tod.update(in, g, {}, nullptr, false, -1, 0, false, o, cq);
+                }
+                return o;
+            };
+            const OutputState o_noon = sample_tod(12);
+            const OutputState o_dawn = sample_tod(6);
+            const OutputState o_dusk = sample_tod(18);
+            CHECK(o_noon.g >= o_noon.r && o_noon.r > o_noon.b &&
+                      o_dawn.r > o_dawn.g && o_dawn.g > o_dawn.b &&
+                      o_dusk.r > o_dusk.g && o_dusk.g > o_dusk.b,
+                  "TimeOfDay lightbar avoids pinkish R+B casts at noon, dawn, and dusk");
+
+            write_ini("[Lightbar]\nEnabled=1\nBrightness=0.5\nColor=#204080\nPlayerLeds=ammo\nMuteLed=off\n");
+            config().load(lb_ini.wstring());
+            Features f_stat;
+            f_stat.configure();
+            InputState in_s; in_s.t = 50.0;
+            GameSnapshot g_s; g_s.valid = true; g_s.hour = 12; g_s.health_core = 100;
+            OutputState o_s; std::vector<Cue> cq_s;
+            for (int i = 0; i < 40; ++i) {
+                in_s.t += 0.02; cq_s.clear();
+                f_stat.update(in_s, g_s, {}, nullptr, false, -1, 0, false, o_s, cq_s);
+            }
+            CHECK(o_s.r >= 14 && o_s.r <= 18 && o_s.g >= 30 && o_s.g <= 34 && o_s.b >= 62 && o_s.b <= 66 &&
+                      o_s.led_brightness == 1 && o_s.mute_led == 0,
+                  "Static hex Color, Brightness=0.5 LED dimming (level 1), and MuteLed=off apply cleanly");
+
+            write_ini("[Lightbar]\nEnabled=0\nBrightness=0.2\nPlayerLeds=health\nMuteLed=auto\n");
+            config().load(lb_ini.wstring());
+            Features f_dis;
+            f_dis.configure();
+            in_s.t = 60.0; o_s = OutputState{}; cq_s.clear();
+            f_dis.update(in_s, g_s, {}, nullptr, false, -1, 0, false, o_s, cq_s);
+            CHECK(o_s.mute_led == 0 && o_s.led_brightness == 2 && o_s.r == 0 && o_s.g == 0 && o_s.b == 0,
+                  "Lightbar.Enabled=0 with MuteLed=auto turns off mute LED and Brightness=0.2 dims LEDs to low (level 2)");
+
+            write_ini("[Lightbar]\nEnabled=0\nMuteLed=on\nTimeOfDay=0\n");
+            config().load(lb_ini.wstring());
+            Features f_mute_on;
+            f_mute_on.configure();
+            in_s.t = 70.0; o_s = OutputState{}; cq_s.clear();
+            f_mute_on.update(in_s, g_s, {}, nullptr, false, -1, 0, false, o_s, cq_s);
+            const MenuEntry* lb_tod_entry = nullptr;
+            for (const auto& e : SettingsMenu::entries())
+                if (std::string(e.id) == "lightbar_tod") lb_tod_entry = &e;
+            CHECK(o_s.mute_led == 1 && lb_tod_entry &&
+                      SettingsMenu::page_value(*lb_tod_entry, config()) == 1 &&
+                      SettingsMenu::value_text(*lb_tod_entry, config()) == "Off (Events Only)",
+                  "MuteLed=on overrides auto-off and legacy TimeOfDay=0 maps to Off (Events Only)");
+
+            write_ini(Config::default_text());
+            config().load(lb_ini.wstring());
+            std::error_code ec_lb;
+            fs::remove(lb_ini, ec_lb);
+        }
+
+        // In-game Triggers.Strength + Touchpad gesture rows & v2.0.1 Touchpad actions
         const MenuEntry* trig_str = nullptr;
         int tp_rows = 0;
         const MenuEntry* tp_up = nullptr;
@@ -1257,7 +1436,7 @@ int run_selftests(const fs::path& data) {
         {
             const std::string pid = std::to_string(GetCurrentProcessId());
             fs::path tp_ini = fs::temp_directory_path() / ("dsr2_tp_" + pid + ".ini");
-            { std::ofstream o(tp_ini); o << "[Touchpad]\nClick=BACK\nSwipeUp=\n"; }
+            { std::ofstream o(tp_ini); o << "[Touchpad]\nClick=BACK\nSwipeUp=\nSwipeRight=LS\nSwipeLeft=EAGLE_EYE\nSwipeDown=SATCHEL\n"; }
             Config tpc;
             tpc.load(tp_ini.wstring());
             if (tp_up) {
@@ -1268,6 +1447,67 @@ int run_selftests(const fs::path& data) {
                           xbutton_from_name("BACK") == XINPUT_GAMEPAD_BACK,
                       "Touchpad empty INI value maps to Off cleanly and presets map to XInput buttons");
             }
+            const TouchAction act_ls = touch_action_from_name("calm_horse");
+            const TouchAction act_ee = touch_action_from_name("EAGLE_EYE");
+            const TouchAction act_map = touch_action_from_name("MAP");
+            const TouchAction act_sat = touch_action_from_name("SATCHEL");
+            const TouchAction act_jrn = touch_action_from_name("JOURNAL");
+            const TouchAction act_cin = touch_action_from_name("CINEMATIC");
+            const TouchAction act_wh = touch_action_from_name("LONG_WHISTLE");
+            CHECK(act_ls.buttons == XINPUT_GAMEPAD_LEFT_THUMB && act_ls.hold_s >= 0.20 &&
+                      act_ee.buttons == (XINPUT_GAMEPAD_LEFT_THUMB | XINPUT_GAMEPAD_RIGHT_THUMB) &&
+                      act_map.buttons == XINPUT_GAMEPAD_START && act_map.hold_s >= 0.5 &&
+                      act_sat.buttons == XINPUT_GAMEPAD_DPAD_RIGHT && act_sat.hold_s >= 0.5 &&
+                      act_jrn.buttons == XINPUT_GAMEPAD_DPAD_LEFT && act_jrn.hold_s >= 0.5 &&
+                      act_cin.buttons == XINPUT_GAMEPAD_BACK && act_cin.hold_s >= 0.5 &&
+                      act_wh.buttons == XINPUT_GAMEPAD_DPAD_UP && act_wh.hold_s >= 0.5,
+                  "Touchpad Calm Horse (L3), Eagle Eye (L3+R3), and hold presets resolve cleanly");
+
+            // Test Touchpad swipe injection (SwipeRight -> L3) and click-swipe suppression
+            config().load(tp_ini.wstring());
+            input().configure();
+            const double t0 = now_s();
+            InputState ts;
+            ts.fresh = true;
+            ts.t = t0;
+            ts.touch[0] = {true, 1, 200, 500};
+            input().track_touch(ts);
+            ts.t = t0 + 0.15;
+            ts.touch[0] = {true, 1, 700, 500};
+            input().track_touch(ts);
+            ts.t = t0 + 0.20;
+            ts.touch[0] = {false, 0, 700, 500};
+            input().track_touch(ts);
+            input().publish(ts, -1, true);
+            XINPUT_STATE st_tp{};
+            CHECK(input().get_state(0, &st_tp) == ERROR_SUCCESS &&
+                      (st_tp.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB) != 0,
+                  "Touchpad swipe right mapped to LS injects L3 (Calm Horse / Crouch)");
+
+            // Clicking while swiping left (EAGLE_EYE) must NOT trigger swipe injection
+            const double t1 = now_s() + 0.5;
+            ts.t = t1;
+            ts.buttons = TOUCHPAD;
+            ts.touch[0] = {true, 2, 1000, 500};
+            input().track_touch(ts);
+            ts.t = t1 + 0.10;
+            ts.buttons = TOUCHPAD;
+            ts.touch[0] = {true, 2, 300, 500};
+            input().track_touch(ts);
+            ts.t = t1 + 0.18;
+            ts.buttons = 0;
+            ts.touch[0] = {false, 0, 300, 500};
+            input().track_touch(ts);
+            ts.t = t1 + 0.25;
+            input().publish(ts, -1, true);
+            XINPUT_STATE st_clk{};
+            CHECK(input().get_state(0, &st_clk) == ERROR_SUCCESS &&
+                      (st_clk.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB) == 0,
+                  "Clicking the touchpad suppresses accidental swipe injection");
+
+            { std::ofstream o(tp_ini); o << Config::default_text(); }
+            config().load(tp_ini.wstring());
+            input().configure();
             std::error_code ec;
             fs::remove(tp_ini, ec);
         }

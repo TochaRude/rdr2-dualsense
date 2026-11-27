@@ -51,6 +51,7 @@ struct OutputState {
     bool has_lightbar = false;
     uint8_t r = 0, g = 0, b = 0;
     int player_leds = -1;          // 5-bit mask, -1 = leave alone
+    int led_brightness = -1;       // 0 = high, 1 = medium, 2 = low, -1 = leave alone
     int mute_led = -1;             // 0 off, 1 on, 2 pulse, -1 = leave alone
     int trigger_power_reduction = 0;
     bool speaker_enabled = false;
@@ -66,6 +67,7 @@ public:
     void stop();
     bool connected() const { return connected_.load(); }
     bool usb() const { return usb_.load(); }
+    bool is_ds4() const { return ds4_.load(); }
     float report_rate() const { return rate_.load(); }
     std::string name() const;
     // Bluetooth haptics: one report 0x32 with 64 bytes of audio (32 stereo frames, 3 kHz, 8 bit). Any thread.
@@ -73,9 +75,13 @@ public:
     // Exposed for unit testing of HID payload/CRC encoding.
     static uint32_t bt_crc32(const uint8_t* data, size_t n);
     void encode_payload(const OutputState& o, uint8_t* p) { build_payload(o, p); }
+    static bool parse_ds4_report(const uint8_t* buf, size_t n, bool usb, InputState& s);
+    static void encode_ds4_payload(const OutputState& o, uint8_t* p10);
+    static void encode_ds4_report(const OutputState& o, bool usb, uint8_t* rep, size_t len);
     static OutputState reset_output();
     static void build_reset_payload(uint8_t* p, bool force_usb_mute, bool release_lightbar);
-    void reset_on_exit() noexcept;
+    void request_force_write() { force_write_.store(true, std::memory_order_release); }
+    int reset_on_exit() noexcept;
 
 private:
     struct GyroCal {
@@ -89,10 +95,11 @@ private:
     bool write(const OutputState& o, bool force);
     void build_payload(const OutputState& o, uint8_t* p);
     void parse_calibration(const uint8_t* feat);
+    void parse_ds4_calibration(const uint8_t* feat, bool is_usb);
 
     Handler handler_;
     std::thread thread_;
-    std::atomic<bool> running_{false}, connected_{false}, usb_{true};
+    std::atomic<bool> running_{false}, connected_{false}, usb_{true}, ds4_{false}, force_write_{false};
     std::atomic<float> rate_{0};
     HANDLE dev_ = INVALID_HANDLE_VALUE;
     std::atomic<HANDLE> raw_dev_{INVALID_HANDLE_VALUE};

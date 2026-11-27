@@ -12,6 +12,7 @@ namespace dsr2 {
 
 static constexpr uint16_t kSony = 0x054C;
 static constexpr uint16_t kDualSense = 0x0CE6, kDualSenseEdge = 0x0DF2;
+static constexpr uint16_t kDualShock4V1 = 0x05C4, kDualShock4V2 = 0x09CC, kDualShock4Dongle = 0x0BA0;
 
 static uint32_t crc32_table[256];
 static std::once_flag crc_once;
@@ -97,6 +98,34 @@ void DualSense::parse_calibration(const uint8_t* feat) {
     gyro_cal_ = cal;
 }
 
+void DualSense::parse_ds4_calibration(const uint8_t* feat, bool is_usb) {
+    auto i16 = [&](int off) -> int { return int(int16_t(feat[off] | (feat[off + 1] << 8))); };
+    int speed_2x = i16(19) + i16(21);
+    if (speed_2x <= 0 || speed_2x > 10000) {
+        gyro_cal_.valid = false;
+        return;
+    }
+    GyroCal cal;
+    for (int a = 0; a < 3; ++a) {
+        int bias = i16(1 + 2 * a);
+        int plus = is_usb ? i16(7 + 4 * a) : i16(7 + 2 * a);
+        int minus = is_usb ? i16(9 + 4 * a) : i16(13 + 2 * a);
+        int range = plus - minus;
+        if (std::abs(bias) > 2048 || range <= 1000) {
+            gyro_cal_.valid = false;
+            return;
+        }
+        cal.bias[a] = float(bias);
+        cal.scale[a] = (float(speed_2x) / float(range)) * 16.4f;
+        if (!std::isfinite(cal.scale[a]) || cal.scale[a] < 0.7f || cal.scale[a] > 1.4f) {
+            gyro_cal_.valid = false;
+            return;
+        }
+    }
+    cal.valid = true;
+    gyro_cal_ = cal;
+}
+
 bool DualSense::open() {
     routed_.store(-1, std::memory_order_release);     // a (re)connected controller starts on the headphone jack again
     headphones_ = false;
@@ -105,7 +134,7 @@ bool DualSense::open() {
     HidD_GetHidGuid(&hid);
     HDEVINFO set = SetupDiGetClassDevsW(&hid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
     if (set == INVALID_HANDLE_VALUE) return false;
-    struct Cand { std::wstring path; bool usb; size_t in, out, feat; };
+    struct Cand { std::wstring path; bool usb; uint16_t pid; size_t in, out, feat; };
     std::vector<Cand> cands;
     SP_DEVICE_INTERFACE_DATA ifd{sizeof(ifd)};
     for (DWORD i = 0; SetupDiEnumDeviceInterfaces(set, nullptr, &hid, i, &ifd); ++i) {
@@ -119,7 +148,13 @@ bool DualSense::open() {
         HANDLE h = CreateFileW(det->DevicePath, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
         if (h == INVALID_HANDLE_VALUE) continue;
         HIDD_ATTRIBUTES a{sizeof(a)};
-        bool ok = HidD_GetAttributes(h, &a) && a.VendorID == kSony && (a.ProductID == kDualSense || a.ProductID == kDualSenseEdge);
+        bool pid_ok = HidD_GetAttributes(h, &a) && a.VendorID == kSony &&
+                      (a.ProductID == kDualSense || a.ProductID == kDualSenseEdge
+#ifdef DSR2_DS4_EXPERIMENTAL
+                       || a.ProductID == kDualShock4V1 || a.ProductID == kDualShock4V2 || a.ProductID == kDualShock4Dongle
+#endif
+                      );
+        bool ok = pid_ok;
         PHIDP_PREPARSED_DATA pp = nullptr;
         HIDP_CAPS caps{};
         if (ok && HidD_GetPreparsedData(h, &pp)) {
@@ -130,7 +165,7 @@ bool DualSense::open() {
             ok = false;
         }
         CloseHandle(h);
-        if (ok) cands.push_back({det->DevicePath, caps.InputReportByteLength == 64, caps.InputReportByteLength,
+        if (ok) cands.push_back({det->DevicePath, caps.InputReportByteLength == 64, a.ProductID, caps.InputReportByteLength,
                                  caps.OutputReportByteLength, caps.FeatureReportByteLength});
     }
     SetupDiDestroyDeviceInfoList(set);
@@ -139,22 +174,29 @@ bool DualSense::open() {
         HANDLE h = CreateFileW(c.path.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                                OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
         if (h == INVALID_HANDLE_VALUE) continue;
+        const bool is_ds4_dev = (c.pid == kDualShock4V1 || c.pid == kDualShock4V2 || c.pid == kDualShock4Dongle);
+        ds4_.store(is_ds4_dev, std::memory_order_release);
         usb_ = c.usb;
         in_len_ = c.in;
         out_len_ = c.out;
         raw_out_len_.store(c.out, std::memory_order_release);
-        write_buf_.assign(std::max<size_t>(out_len_, c.usb ? 48 : 78), 0);
+        const size_t min_out = is_ds4_dev ? (c.usb ? 32 : 78) : (c.usb ? 48 : 78);
+        write_buf_.assign(std::max<size_t>(out_len_, min_out), 0);
         hap_buf_.assign(std::max<size_t>(out_len_, 142), 0);
         gyro_cal_ = GyroCal{};
         {
-            size_t flen = std::max<size_t>(c.feat, c.usb ? 64 : 41);
+            size_t flen = std::max<size_t>(c.feat, is_ds4_dev ? (c.usb ? 37 : 41) : (c.usb ? 64 : 41));
             std::vector<uint8_t> feat(flen, 0);
-            feat[0] = 0x05;          // calibration report (also switches BT to full 0x31 reports)
+            feat[0] = is_ds4_dev ? (c.usb ? 0x02 : 0x05) : 0x05;  // calibration report (also activates BT full reports)
             if (HidD_GetFeature(h, feat.data(), ULONG(feat.size()))) {
-                parse_calibration(feat.data());
+                if (is_ds4_dev) parse_ds4_calibration(feat.data(), c.usb);
+                else parse_calibration(feat.data());
             } else if (!c.usb && feat.size() != 41) {
                 uint8_t feat41[41] = {0x05};
-                if (HidD_GetFeature(h, feat41, 41)) parse_calibration(feat41);
+                if (HidD_GetFeature(h, feat41, 41)) {
+                    if (is_ds4_dev) parse_ds4_calibration(feat41, false);
+                    else parse_calibration(feat41);
+                }
             }
         }
         lightbar_released_.store(false, std::memory_order_release);
@@ -163,7 +205,12 @@ bool DualSense::open() {
             std::lock_guard<std::mutex> l(dev_mu_);
             dev_ = h;
             raw_dev_.store(h, std::memory_order_release);
-            name_ = std::string("DualSense ") + (c.usb ? "USB" : "Bluetooth");
+            if (is_ds4_dev) {
+                name_ = std::string("DualShock 4 ") +
+                        (c.pid == kDualShock4Dongle ? "Wireless Adaptor" : c.usb ? "USB" : "Bluetooth");
+            } else {
+                name_ = std::string("DualSense ") + (c.usb ? "USB" : "Bluetooth");
+            }
         }
         LOGI("controller: %s (in %zu, out %zu bytes%s)", name().c_str(), in_len_, out_len_,
              gyro_cal_.valid ? ", gyro cal ok" : "");
@@ -230,6 +277,91 @@ static void parse(const uint8_t* d, InputState& s) {
     s.headphones = (d[53] & 0x01) != 0;      // status[1] bit 0 (Linux hid-playstation: DS_STATUS1_HP_DETECT)
 }
 
+bool DualSense::parse_ds4_report(const uint8_t* buf, size_t n, bool usb, InputState& s) {
+    if (!buf || n < 10) return false;
+    const uint8_t* d = nullptr;
+    bool full = false;
+    if (usb && buf[0] == 0x01 && n >= 64) {
+        d = buf + 1;
+        full = true;
+    } else if (!usb && buf[0] == 0x11 && n >= 78) {
+        d = buf + 3;
+        full = true;
+    } else if (!usb && buf[0] == 0x01 && n >= 10) {
+        d = buf + 1;
+        full = false;
+    } else {
+        return false;
+    }
+    s.lx = d[0]; s.ly = d[1]; s.rx = d[2]; s.ry = d[3];
+    const uint8_t b0 = d[4], b1 = d[5], b2 = d[6];
+    static const uint32_t hat[8] = {DPAD_UP, DPAD_UP | DPAD_RIGHT, DPAD_RIGHT, DPAD_RIGHT | DPAD_DOWN, DPAD_DOWN,
+                                    DPAD_DOWN | DPAD_LEFT, DPAD_LEFT, DPAD_LEFT | DPAD_UP};
+    uint32_t m = (b0 & 0x0F) < 8 ? hat[b0 & 0x0F] : 0;
+    if (b0 & 0x10) m |= SQUARE;
+    if (b0 & 0x20) m |= CROSS;
+    if (b0 & 0x40) m |= CIRCLE;
+    if (b0 & 0x80) m |= TRIANGLE;
+    static const uint32_t row1[8] = {L1, R1, L2_BTN, R2_BTN, CREATE, OPTIONS, L3, R3};
+    for (int i = 0; i < 8; ++i) if (b1 & (1 << i)) m |= row1[i];
+    if (b2 & 1) m |= PS;
+    if (b2 & 2) m |= TOUCHPAD;
+    s.buttons = m;
+    s.l2 = d[7]; s.r2 = d[8];
+    s.touch[0] = TouchPoint{};
+    s.touch[1] = TouchPoint{};
+    if (full) {
+        s.sensor_ts = uint32_t(d[9] | (d[10] << 8));
+        for (int i = 0; i < 3; ++i) {
+            s.gyro[i] = int16_t(d[12 + 2 * i] | (d[13 + 2 * i] << 8));
+            s.accel[i] = int16_t(d[18 + 2 * i] | (d[19 + 2 * i] << 8));
+        }
+        const int lvl = d[29] & 0x0F;
+        const bool cable = (d[29] & 0x10) != 0;
+        s.battery = std::min(10, lvl);
+        s.battery_state = cable ? (lvl >= 11 ? 2 : 1) : 0;
+        s.headphones = (d[29] & 0x20) != 0;
+        const uint8_t num_touch = d[32];
+        if (num_touch > 0 && size_t((d - buf) + 42) <= n) {
+            for (int i = 0; i < 2; ++i) {
+                const uint8_t* p = d + 34 + 4 * i;
+                s.touch[i].active = !(p[0] & 0x80);
+                s.touch[i].id = p[0] & 0x7F;
+                s.touch[i].x = p[1] | ((p[2] & 0x0F) << 8);
+                s.touch[i].y = (p[2] >> 4) | (p[3] << 4);
+            }
+        }
+    }
+    return true;
+}
+
+void DualSense::encode_ds4_payload(const OutputState& o, uint8_t* p10) {
+    std::memset(p10, 0, 10);
+    p10[0] = 0x07;                            // valid_flag0: rumble | lightbar | blink (0/0 = solid)
+    p10[3] = o.has_rumble ? o.rumble_right : 0;
+    p10[4] = o.has_rumble ? o.rumble_left : 0;
+    p10[5] = o.has_lightbar ? o.r : 0;
+    p10[6] = o.has_lightbar ? o.g : 0;
+    p10[7] = o.has_lightbar ? o.b : 0;
+}
+
+void DualSense::encode_ds4_report(const OutputState& o, bool usb, uint8_t* rep, size_t len) {
+    std::memset(rep, 0, len);
+    if (usb) {
+        if (len >= 11) {
+            rep[0] = 0x05;
+            encode_ds4_payload(o, rep + 1);
+        }
+    } else if (len >= 78) {
+        rep[0] = 0x11;
+        rep[1] = 0xC0;
+        rep[2] = 0x00;
+        encode_ds4_payload(o, rep + 3);
+        uint32_t crc = bt_crc32(rep, 74);
+        std::memcpy(rep + 74, &crc, 4);
+    }
+}
+
 void DualSense::build_payload(const OutputState& o, uint8_t* p) {
     std::memset(p, 0, 47);
     p[0] = 0x04 | 0x08;                       // both trigger effects
@@ -254,6 +386,10 @@ void DualSense::build_payload(const OutputState& o, uint8_t* p) {
             p[41] = 0x02;
         }
         p[44] = o.r; p[45] = o.g; p[46] = o.b;
+    }
+    if (o.led_brightness >= 0) {
+        p[38] |= 0x01;                        // DS_OUTPUT_VALID_FLAG2_LED_BRIGHTNESS_CONTROL_ENABLE
+        p[42] = uint8_t(clampv(o.led_brightness, 0, 2));
     }
     if (o.player_leds >= 0) {
         p[1] |= 0x10;
@@ -318,30 +454,33 @@ void DualSense::build_reset_payload(uint8_t* p, bool force_usb_mute, bool releas
     }
 }
 
-void DualSense::reset_on_exit() noexcept {
+int DualSense::reset_on_exit() noexcept {
     running_.store(false, std::memory_order_release);
     connected_.store(false, std::memory_order_release);
     HANDLE h = raw_dev_.exchange(INVALID_HANDLE_VALUE, std::memory_order_acq_rel);
-    if (h == INVALID_HANDLE_VALUE) return;
+    if (h == INVALID_HANDLE_VALUE) return 0;
 
     // Abort any pending overlapped HID reads/writes stopped when threads exited, then send a lock-free reset.
     CancelIoEx(h, nullptr);
 
     const bool is_usb = usb_.load(std::memory_order_acquire);
-    const bool mute_spk = is_usb && routed_.load(std::memory_order_acquire) == 2;
-    const bool release_lb = !lightbar_released_.load(std::memory_order_acquire);
+    const bool is_ds4 = ds4_.load(std::memory_order_acquire);
+    const bool mute_spk = !is_ds4 && is_usb && routed_.load(std::memory_order_acquire) == 2;
+    const bool release_lb = !is_ds4 && !lightbar_released_.load(std::memory_order_acquire);
     uint8_t payload[47];
-    build_reset_payload(payload, mute_spk, release_lb);
+    if (!is_ds4) build_reset_payload(payload, mute_spk, release_lb);
 
-    const size_t min_len = is_usb ? 48 : 78;
+    const size_t min_len = is_ds4 ? (is_usb ? 32 : 78) : (is_usb ? 48 : 78);
     const size_t out_hint = raw_out_len_.load(std::memory_order_acquire);
     uint8_t rep[256];
     const size_t want = std::min(sizeof(rep), std::max(out_hint, min_len));
     HANDLE ev = exit_ev_.load(std::memory_order_acquire);
 
-    auto send_once = [&]() {
+    auto send_once = [&]() -> bool {
         std::memset(rep, 0, want);
-        if (is_usb) {
+        if (is_ds4) {
+            encode_ds4_report(reset_output(), is_usb, rep, want);
+        } else if (is_usb) {
             rep[0] = 0x02;
             std::memcpy(rep + 1, payload, 47);
         } else {
@@ -363,21 +502,50 @@ void DualSense::reset_on_exit() noexcept {
             if (WaitForSingleObject(wait_h, 80) != WAIT_OBJECT_0) {
                 CancelIoEx(h, &ov);
                 GetOverlappedResult(h, &ov, &n, TRUE);
-            } else {
-                GetOverlappedResult(h, &ov, &n, FALSE);
+                return false;
             }
+            ok = GetOverlappedResult(h, &ov, &n, FALSE);
         }
+        return ok != FALSE;
     };
 
-    send_once();
-    if (!is_usb) {
-        Sleep(15);
-        send_once();
-    }
+    bool any_ok = send_once();
+    Sleep(is_usb ? 10 : 15);
+    if (send_once()) any_ok = true;
     CloseHandle(h);
+    return any_ok ? 1 : -1;
 }
 
 bool DualSense::write(const OutputState& o, bool force) {
+    if (force_write_.exchange(false, std::memory_order_acq_rel)) force = true;
+    const bool is_ds4 = ds4_.load(std::memory_order_acquire);
+    if (is_ds4) {
+        uint8_t p10[10];
+        encode_ds4_payload(o, p10);
+        if (!force && last_payload_.size() == 10 && std::memcmp(last_payload_.data(), p10, 10) == 0) return true;
+        std::lock_guard<std::mutex> l(dev_mu_);
+        if (dev_ == INVALID_HANDLE_VALUE) return false;
+        size_t want = std::max<size_t>(out_len_, usb_ ? 32 : 78);
+        if (write_buf_.size() != want) write_buf_.resize(want);
+        encode_ds4_report(o, usb_, write_buf_.data(), write_buf_.size());
+        OVERLAPPED ov{};
+        ov.hEvent = write_ev_;
+        ResetEvent(write_ev_);
+        DWORD n = 0;
+        BOOL ok = WriteFile(dev_, write_buf_.data(), DWORD(write_buf_.size()), &n, &ov);
+        if (!ok && GetLastError() == ERROR_IO_PENDING) {
+            if (WaitForSingleObject(write_ev_, 50) != WAIT_OBJECT_0) {
+                CancelIoEx(dev_, &ov);
+                GetOverlappedResult(dev_, &ov, &n, TRUE);
+                return false;
+            }
+            ok = GetOverlappedResult(dev_, &ov, &n, FALSE);
+        }
+        if (!ok) return false;
+        if (o.has_lightbar) lightbar_released_.store(true, std::memory_order_release);
+        last_payload_.assign(p10, p10 + 10);
+        return true;
+    }
     uint8_t payload[47];
     build_payload(o, payload);
     if (!force && last_payload_.size() == 47 && std::memcmp(last_payload_.data(), payload, 47) == 0) return true;
@@ -428,7 +596,7 @@ bool DualSense::write(const OutputState& o, bool force) {
 // 0xA2) over the first 138 bytes, stored after them.
 bool DualSense::send_haptics(const uint8_t* pcm64) {
     std::lock_guard<std::mutex> l(dev_mu_);
-    if (dev_ == INVALID_HANDLE_VALUE || usb_ || !connected_) return false;
+    if (dev_ == INVALID_HANDLE_VALUE || ds4_.load(std::memory_order_acquire) || usb_ || !connected_) return false;
     size_t want = std::max<size_t>(out_len_, 142);
     if (hap_buf_.size() != want) hap_buf_.resize(want);
     std::fill(hap_buf_.begin(), hap_buf_.end(), 0);
@@ -497,7 +665,11 @@ void DualSense::loop() {
                     LOGW("controller disconnected");
                     break;
                 }
-                if (buf[0] == 0x01 && n >= 64) {
+                if (ds4_.load(std::memory_order_acquire)) {
+                    if (!parse_ds4_report(buf.data(), n, usb_, s)) continue;
+                    headphones_ = s.headphones;
+                    s.fresh = true;
+                } else if (buf[0] == 0x01 && n >= 64) {
                     parse(buf.data() + 1, s);
                     headphones_ = s.headphones;
                     s.fresh = true;

@@ -148,12 +148,19 @@ UI=1
 Volume=0.35
 
 [Lightbar]
+; 0 disables the lightbar (and when MuteLed=auto, turns off the orange mute LED too)
 Enabled=1
+; 0.0 - 1.0: dims the lightbar and also scales the 5 Player LEDs hardware brightness
 Brightness=1.0
 ; Player LEDs below the touchpad: auto (ammo when armed, health changes when unarmed), health, ammo, or off
 PlayerLeds=auto
-; Ambient colour follows the time of day when nothing else is shown
+; Idle lightbar colour when no effect plays: auto (follows time of day), off (events only), preset
+; (white, blue, cyan, green, gold, orange, red, purple), or hex #RRGGBB (e.g. #4080FF)
+Color=auto
+; Legacy fallback when Color is empty (1 = Time of Day, 0 = off)
 TimeOfDay=1
+; Orange mute button LED: auto (follows mic state, turns off when Lightbar Enabled=0), on, or off
+MuteLed=auto
 
 [Gyro]
 ; EXPERIMENTAL - still being tuned (can feel floaty). Off by default.
@@ -207,7 +214,9 @@ SpeedPhrase=
 SpurTaps=2
 
 [Touchpad]
-; Button sent to the game: A B X Y LB RB LT RT BACK START LS RS UP DOWN LEFT RIGHT, OFF or empty = nothing
+; Gesture action: BACK, CINEMATIC (hold Back), MAP (hold Start), LS (Calm/Pat Horse & Crouch / L3),
+; EAGLE_EYE (L3+R3), UP (Whistle), LONG_WHISTLE (hold Up), DOWN, SATCHEL (hold Right), JOURNAL (hold Left),
+; LEFT, RIGHT, START, LB, RB, RS, A, B, X, Y, OFF or empty = nothing
 Click=BACK
 SwipeUp=
 SwipeDown=

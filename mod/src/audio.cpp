@@ -353,9 +353,16 @@ void AudioEngine::rumble_tick(double now, uint8_t& left, uint8_t& right) {
     r = std::max(r, rumble_high_.load() * g);
     left = uint8_t(std::min(255.0f, l * 255));
     right = uint8_t(std::min(255.0f, r * 200));
+    if (left < 4) left = 0;
+    if (right < 4) right = 0;
 }
 
 void AudioEngine::render_thread() {
+    if (rumble_only_.load()) {
+        ok_ = false;
+        LOGI("haptics output: DualShock 4 rumble emulation (experimental)");
+        return;
+    }
     HRESULT co = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     bool fallback_bt = false;
     {

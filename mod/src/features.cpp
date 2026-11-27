@@ -7,6 +7,70 @@
 
 namespace dsr2 {
 
+bool Features::parse_lightbar_color(const std::string& raw, uint8_t& r, uint8_t& g, uint8_t& b) {
+    size_t a = raw.find_first_not_of(" \t\r\n");
+    if (a == std::string::npos) return false;
+    size_t z = raw.find_last_not_of(" \t\r\n");
+    std::string s = raw.substr(a, z - a + 1);
+    for (char& ch : s) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+    static const std::pair<const char*, std::array<uint8_t, 3>> presets[] = {
+        {"white",  {110, 120, 95}},
+        {"blue",   {10, 55, 175}},
+        {"cyan",   {0, 130, 150}},
+        {"green",  {15, 135, 30}},
+        {"gold",   {145, 95, 10}},
+        {"amber",  {145, 95, 10}},
+        {"orange", {165, 65, 5}},
+        {"red",    {155, 15, 5}},
+        {"purple", {95, 20, 155}},
+    };
+    for (const auto& [name, rgb] : presets) {
+        if (s == name) {
+            r = rgb[0]; g = rgb[1]; b = rgb[2];
+            return true;
+        }
+    }
+    if (!s.empty() && s[0] == '#') s.erase(0, 1);
+    if (s.size() == 6) {
+        auto hex = [](char ch) -> int {
+            if (ch >= '0' && ch <= '9') return ch - '0';
+            if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
+            return -1;
+        };
+        int vals[6];
+        bool ok = true;
+        for (int i = 0; i < 6; ++i) {
+            vals[i] = hex(s[i]);
+            if (vals[i] < 0) { ok = false; break; }
+        }
+        if (ok) {
+            r = uint8_t((vals[0] << 4) | vals[1]);
+            g = uint8_t((vals[2] << 4) | vals[3]);
+            b = uint8_t((vals[4] << 4) | vals[5]);
+            return true;
+        }
+    }
+    size_t c1 = s.find(','), c2 = c1 == std::string::npos ? std::string::npos : s.find(',', c1 + 1);
+    if (c1 != std::string::npos && c2 != std::string::npos && s.find(',', c2 + 1) == std::string::npos) {
+        auto comp = [](const std::string& tok, uint8_t& out) -> bool {
+            size_t ta = tok.find_first_not_of(" \t"), tb = tok.find_last_not_of(" \t");
+            if (ta == std::string::npos) return false;
+            std::string t = tok.substr(ta, tb - ta + 1);
+            char* end = nullptr;
+            long v = std::strtol(t.c_str(), &end, 10);
+            if (!end || *end != '\0' || v < 0 || v > 255) return false;
+            out = uint8_t(v);
+            return true;
+        };
+        uint8_t cr = 0, cg = 0, cb = 0;
+        if (comp(s.substr(0, c1), cr) && comp(s.substr(c1 + 1, c2 - c1 - 1), cg) && comp(s.substr(c2 + 1), cb)) {
+            r = cr; g = cg; b = cb;
+            return true;
+        }
+    }
+    return false;
+}
+
 void Features::configure() {
     Config& c = config();
     horse_gain_ = c.num("Haptics", "Horse", 0.3f);
@@ -28,7 +92,7 @@ void Features::configure() {
     bool was_lb = lightbar_on_;
     lightbar_on_ = c.flag("Lightbar", "Enabled", true);
     if (was_lb && !lightbar_on_) lightbar_off_sent_ = false;
-    brightness_ = c.num("Lightbar", "Brightness", 1.0f);
+    brightness_ = clampv(c.num("Lightbar", "Brightness", 1.0f), 0.0f, 1.0f);
     ammo_leds_ = c.flag("Lightbar", "AmmoLeds", true);
     std::string lm = c.str("Lightbar", "PlayerLeds", "");
     if (lm.empty()) lm = ammo_leds_ ? "auto" : "off";      // an ini from before PlayerLeds
@@ -38,6 +102,32 @@ void Features::configure() {
     else if (lm == "ammo") led_mode_ = LedMode::Ammo;
     else led_mode_ = LedMode::Auto;
     time_of_day_ = c.flag("Lightbar", "TimeOfDay", true);
+    std::string col = c.str("Lightbar", "Color", "");
+    if (col.empty()) col = time_of_day_ ? "auto" : "off";
+    size_t ca = col.find_first_not_of(" \t\r\n"), cz = col.find_last_not_of(" \t\r\n");
+    col = (ca == std::string::npos) ? std::string() : col.substr(ca, cz - ca + 1);
+    for (char& ch : col) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+    uint8_t cr = 0, cg = 0, cb = 0;
+    if (col == "off" || col == "none" || col == "black" || col == "0") {
+        color_mode_ = ColorMode::Off;
+    } else if (col == "auto" || col == "tod" || col == "timeofday") {
+        color_mode_ = ColorMode::TimeOfDay;
+    } else if (parse_lightbar_color(col, cr, cg, cb)) {
+        color_mode_ = ColorMode::Static;
+        static_rgb_[0] = float(cr);
+        static_rgb_[1] = float(cg);
+        static_rgb_[2] = float(cb);
+    } else {
+        LOGW("Lightbar.Color='%s' not recognised - falling back to auto (time of day)", col.c_str());
+        color_mode_ = ColorMode::TimeOfDay;
+    }
+    std::string ml = c.str("Lightbar", "MuteLed", "auto");
+    size_t ma = ml.find_first_not_of(" \t\r\n"), mz = ml.find_last_not_of(" \t\r\n");
+    ml = (ma == std::string::npos) ? std::string("auto") : ml.substr(ma, mz - ma + 1);
+    for (char& ch : ml) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+    if (ml == "off" || ml == "0" || ml == "false") mute_led_mode_ = MuteLedMode::Off;
+    else if (ml == "on" || ml == "1" || ml == "true") mute_led_mode_ = MuteLedMode::On;
+    else mute_led_mode_ = MuteLedMode::Auto;
 }
 
 static Cue make(const std::string& name, float gain, float pan = 0, bool has_pan = false, bool scripted = false) {
@@ -233,18 +323,22 @@ void Features::lightbar(const InputState& in, const GameSnapshot& g, const Engin
         r = 180 * beat;
     } else if (!in.charging() && in.battery == 0 && std::fmod(now, 4.0) < 0.25) {
         r = 160; gr = 35; b = 0;                                    // gentle low-battery blink when discharging
-    } else if (time_of_day_) {
-        // Smooth blend across night (5), dawn (6), day (8..17), sunset (19), night (21)
+    } else if (color_mode_ == ColorMode::Static) {
+        r = static_rgb_[0]; gr = static_rgb_[1]; b = static_rgb_[2];
+    } else if (color_mode_ == ColorMode::TimeOfDay) {
+        // Smooth pink-free blend across night, dawn, day, sunset, and night (crosses neutral twilight so red + blue never blend into pink)
         auto lerp3 = [&](float a0, float a1, float a2, float b0, float b1, float b2, float u) {
             r = a0 + (b0 - a0) * u; gr = a1 + (b1 - a1) * u; b = a2 + (b2 - a2) * u;
         };
         float h = float(g.hour);
-        if (h < 5.0f || h >= 21.0f) { r = 5; gr = 10; b = 40; }
-        else if (h < 6.0f) lerp3(5, 10, 40, 120, 60, 30, h - 5.0f);
-        else if (h < 8.0f) lerp3(120, 60, 30, 70, 55, 35, (h - 6.0f) * 0.5f);
-        else if (h < 18.0f) { r = 70; gr = 55; b = 35; }
-        else if (h < 19.0f) lerp3(70, 55, 35, 150, 60, 15, h - 18.0f);
-        else lerp3(150, 60, 15, 5, 10, 40, (h - 19.0f) * 0.5f);
+        if (h < 5.0f || h >= 21.0f) { r = 4; gr = 12; b = 42; }
+        else if (h < 5.5f) lerp3(4, 12, 42, 28, 32, 22, (h - 5.0f) * 2.0f);
+        else if (h < 6.5f) lerp3(28, 32, 22, 125, 82, 16, h - 5.5f);
+        else if (h < 8.5f) lerp3(125, 82, 16, 65, 70, 32, (h - 6.5f) * 0.5f);
+        else if (h < 17.5f) { r = 65; gr = 70; b = 32; }
+        else if (h < 19.0f) lerp3(65, 70, 32, 145, 76, 10, (h - 17.5f) / 1.5f);
+        else if (h < 20.0f) lerp3(145, 76, 10, 24, 24, 18, h - 19.0f);
+        else lerp3(24, 24, 18, 4, 12, 42, h - 20.0f);
     }
     // dt-independent smoothing (except instant flashes)
     double dt = last_lb_t_ > 0 ? clampv(now - last_lb_t_, 0.0, 0.2) : 0.016;
@@ -262,7 +356,10 @@ void Features::lightbar(const InputState& in, const GameSnapshot& g, const Engin
 void Features::update(const InputState& in, const GameSnapshot& g, std::vector<WorldEvent> events, const EngineFrame* weapon,
                       bool weapon_active, int clip, int clip_size, bool mic_listening, OutputState& out, std::vector<Cue>& cues) {
     double now = in.t;
-    out.mute_led = mic_listening ? 0 : 1;
+    if (mute_led_mode_ == MuteLedMode::Off || (mute_led_mode_ == MuteLedMode::Auto && !lightbar_on_))
+        out.mute_led = 0;
+    else
+        out.mute_led = mic_listening ? 0 : 1;
     if (!g.valid || g.halted) {
         delayed_.clear();
     } else {
@@ -282,6 +379,7 @@ void Features::update(const InputState& in, const GameSnapshot& g, std::vector<W
     if (led_mode_ == LedMode::Off) {
         out.player_leds = 0;
     } else {
+        out.led_brightness = (brightness_ >= 0.67f) ? 0 : (brightness_ >= 0.34f) ? 1 : 2;
         static const int masks[6] = {0x00, 0x04, 0x0A, 0x15, 0x1B, 0x1F};   // centre-out like the PS5 player LEDs
         const bool ammo_shown = led_mode_ != LedMode::Health && weapon_active && clip_size > 0 && clip >= 0;
         const bool show_health = g.valid && now < health_led_until_ &&
